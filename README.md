@@ -16,11 +16,11 @@ Ablauf: **Scannen → AR-Ansicht → Details**.
 1. **Scannen:** Die Kamera sucht den QR-Code der Station. Alternativ erkennt die App den
    Hiro-Marker aus der Vorlage (er steht stellvertretend für den QR-Code der Station 07).
 2. **AR-Ansicht:** Oben steht groß das Ergebnis (bestanden / nicht bestanden / keine aktuellen Daten).
-   Eine Karte am Bauteil zeigt Dosennummer, Inhalt und Deckel. Am Marker leuchtet ein Ring in der Ergebnisfarbe.
-3. **Details:** Kugeln je Farbe (Ist gegen Soll), Deckel (erkannt gegen Soll), Sensor, Steuerung, Zeitpunkt.
+   Eine Karte am Bauteil zeigt Dosennummer und Inhalt (Kugeln je Farbe). Am Marker leuchtet ein Ring in der Ergebnisfarbe.
+3. **Details:** Kugeln je Farbe (Ist gegen Soll), Sensor, Steuerung, Zeitpunkt.
    Die App liest nur und steuert die Anlage nicht.
 
-Die Messwerte sind Beispieldaten. Das Anforderungsdokument steht im Word-Dokument der Gruppe.
+Der Deckel wird erst in der nächsten Station geprüft und kommt in dieser App nicht vor. Die Messwerte sind Beispieldaten. Das Anforderungsdokument steht im Word-Dokument der Gruppe.
 
 ### Ausprobieren
 

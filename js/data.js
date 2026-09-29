@@ -21,21 +21,21 @@ window.Gateway = (function () {
     }
   };
 
-  // Sollwerte der Prüfung: Kugeln je Farbe und Deckel
+  // Sollwerte der Prüfung: Kugeln je Farbe.
+  // Der Deckel wird erst in der nächsten Station geprüft und kommt deshalb hier nicht vor.
   var SOLL = {
     content: [
       { name: 'Rot', color: '#e5484d', soll: 3 },
       { name: 'Gelb', color: '#f5c542', soll: 2 },
       { name: 'Blau', color: '#3b82f6', soll: 4 }
-    ],
-    lid: { shape: 'Dreieck', color: 'Blau' }
+    ]
   };
 
   // Istwerte je Szenario: bestanden (ok), nicht bestanden (nok), keine Verbindung (stale)
   var IST = {
-    ok:    { counts: [3, 2, 4], lid: { shape: 'Dreieck', color: 'Blau' } },
-    nok:   { counts: [3, 2, 3], lid: { shape: 'Kreis',   color: 'Rot'  } },
-    stale: { counts: [3, 2, 4], lid: { shape: 'Dreieck', color: 'Blau' } }
+    ok:    { counts: [3, 2, 4] },
+    nok:   { counts: [3, 2, 3] },
+    stale: { counts: [3, 2, 4] }
   };
 
   var STALE_AGE_MS = 47000; // letzter Wert ist 47 s alt, wenn die Verbindung fehlt
@@ -53,7 +53,6 @@ window.Gateway = (function () {
     var total = content.reduce(function (s, c) { return s + c.ist; }, 0);
     var totalSoll = content.reduce(function (s, c) { return s + c.soll; }, 0);
     var contentOk = content.every(function (c) { return c.ist === c.soll; });
-    var lidOk = ist.lid.shape === SOLL.lid.shape && ist.lid.color === SOLL.lid.color;
 
     var reasons = [];
     content.forEach(function (c) {
@@ -61,17 +60,15 @@ window.Gateway = (function () {
       if (diff > 0) reasons.push(c.name + ': ' + diff + (diff === 1 ? ' Kugel fehlt' : ' Kugeln fehlen'));
       if (diff < 0) reasons.push(c.name + ': ' + (-diff) + (diff === -1 ? ' Kugel zu viel' : ' Kugeln zu viel'));
     });
-    if (!lidOk) reasons.push('Deckel passt nicht zum Inhalt');
 
     return {
       dose: '0412',
       time: clock(measuredAt),
-      pass: contentOk && lidOk,
+      pass: contentOk,
       content: content,
       total: total,
       totalSoll: totalSoll,
       contentOk: contentOk,
-      lid: { ist: ist.lid, soll: SOLL.lid, ok: lidOk },
       reasons: reasons
     };
   }

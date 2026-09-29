@@ -28,15 +28,10 @@
     data: null,
     refreshedAt: 0,
     backdrop: 'camera',
+    cameraOk: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia), // false, wenn Erlaubnis oder Kamera fehlt
     busy: false
   };
 
-  var SHAPES = {
-    Dreieck: '<polygon points="14,3 26,25 2,25"/>',
-    Kreis: '<circle cx="14" cy="14" r="11"/>',
-    Quadrat: '<rect x="3" y="3" width="22" height="22" rx="2.5"/>'
-  };
-  var COLORS = { Rot: '#e5484d', Gelb: '#f5c542', Blau: '#3b82f6' };
   var ICON = {
     ok: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     bad: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>',
@@ -51,10 +46,6 @@
     });
   }
   function mk(kind) { return '<span class="mk ' + kind + '">' + ICON[kind] + '</span>'; }
-  function glyph(shape, colorName, size) {
-    return '<svg viewBox="0 0 28 28" width="' + size + '" height="' + size + '" fill="' + COLORS[colorName] + '" aria-hidden="true">' + SHAPES[shape] + '</svg>';
-  }
-  function lower(s) { return s.toLowerCase(); }
 
   /* ---------- Ansichten ---------- */
 
@@ -79,7 +70,28 @@
     state.source = null;
     state.data = null;
     setView('scan');
-    setScanStatus(state.backdrop === 'demo' ? 'Demo-Modus: Tippe auf „Station manuell wählen“.' : SCAN_HINT);
+    setScanStatus(scanHint());
+    syncScanActions();
+  }
+
+  function scanHint() {
+    if (state.backdrop !== 'demo') return SCAN_HINT;
+    return state.cameraOk
+      ? 'Demo-Bild aktiv. Tippe auf „Kamera verwenden“, um zu scannen.'
+      : 'Keine Kamera verfügbar. Prüfe die Kamera-Erlaubnis oder wähle die Station manuell.';
+  }
+
+  // Im Demo-Bild mit funktionierender Kamera gibt es den Weg zurück zur Kamera
+  function syncScanActions() {
+    var backToCamera = state.backdrop === 'demo' && state.cameraOk;
+    $('btn-camera').hidden = !backToCamera;
+    $('btn-demo-start').hidden = backToCamera;
+  }
+
+  // "Neu scannen": zurück zur Kamera, falls vorher das Demo-Bild aktiv war
+  function rescan() {
+    if (state.backdrop === 'demo' && state.cameraOk) setBackdrop('camera');
+    resetScan();
   }
 
   /* ---------- Darstellung der Messwerte ---------- */
@@ -89,7 +101,7 @@
     if (d.scenario === 'stale') {
       return { title: 'Keine aktuellen Daten', sub: 'Letzter Wert von ' + m.time + '. Die Verbindung ist unterbrochen.', kind: 'warn' };
     }
-    if (m.pass) return { title: 'Prüfung bestanden', sub: 'Inhalt und Deckel in Ordnung', kind: 'ok' };
+    if (m.pass) return { title: 'Prüfung bestanden', sub: 'Alle Kugeln in der richtigen Menge', kind: 'ok' };
     return { title: 'Nicht bestanden', sub: m.reasons.join(', '), kind: 'bad' };
   }
 
@@ -99,7 +111,10 @@
     var d = state.data;
     var m = d.measurement;
     var b = bannerTexts(d);
-    var lidText = m.lid.ist.shape + ' · ' + lower(m.lid.ist.color);
+    var chips = m.content.map(function (c) {
+      var bad = d.scenario !== 'stale' && c.ist !== c.soll;
+      return '<span class="cchip"><i class="dot-c" style="background:' + c.color + '"></i><b class="' + (bad ? 'bad' : '') + '">' + c.ist + '/' + c.soll + '</b></span>';
+    }).join('');
 
     document.body.dataset.state = d.scenario;
     $('station-name').textContent = 'Station ' + d.station.id + ' · ' + d.station.name;
@@ -111,14 +126,12 @@
     $('tag').innerHTML =
       '<div class="tag-head">Dose #' + esc(m.dose) + '<span>' + esc(m.time) + '</span></div>' +
       '<div class="trow">' + mk(rowKind(d, m.contentOk)) + '<span class="k">Inhalt</span><span class="v">' + m.total + ' von ' + m.totalSoll + ' Kugeln</span></div>' +
-      '<div class="trow">' + mk(rowKind(d, m.lid.ok)) + '<span class="k">Deckel</span><span class="v">' + esc(lidText) + '</span></div>' +
+      '<div class="trow"><span class="sp"></span><span class="k">Farben</span><span class="cchips">' + chips + '</span></div>' +
       '<p class="live js-live"><i></i><span></span></p>';
 
-    // Ring am Hiro-Marker und Deckel im Demo-Bild zeigen das Ergebnis ebenfalls
+    // Ring am Hiro-Marker zeigt das Ergebnis ebenfalls
     var ringColor = { ok: '#3ddc84', nok: '#ff5c5c', stale: '#f5b942' }[d.scenario];
     $('marker-ring').setAttribute('color', ringColor);
-    $('lid-shape').setAttribute('fill', COLORS[m.lid.ist.color]);
-    $('lid-shape').innerHTML = SHAPES[m.lid.ist.shape];
 
     renderDetails(d);
     updateLive();
@@ -145,20 +158,10 @@
         '<span class="val ' + (ok ? '' : 'bad') + '">' + c.ist + ' / ' + c.soll + '</span>' + mk(kind) + '</div>';
     }).join('');
 
-    var L = m.lid;
-    var lidKind = rowKind(d, L.ok);
-    var verdict = d.scenario === 'stale' ? 'Letzter Stand, bitte Verbindung prüfen'
-      : (L.ok && m.contentOk ? 'Sortenrein einlagerbar' : 'Nicht einlagern, Dose prüfen');
-
     $('sheet-body').innerHTML =
       alertHtml +
       '<div class="card"><h3>Inhalt · Kugeln</h3>' + rows +
         '<div class="sum"><span>Gesamt</span><b>' + m.total + ' / ' + m.totalSoll + '</b></div></div>' +
-      '<div class="card"><h3>Deckel</h3><div class="lid">' +
-        '<div><small>Erkannt</small>' + glyph(L.ist.shape, L.ist.color, 32) + '<span>' + esc(L.ist.shape) + ' · ' + esc(lower(L.ist.color)) + '</span></div>' +
-        '<div class="eq">' + (L.ok ? '=' : '≠') + '</div>' +
-        '<div><small>Soll</small>' + glyph(L.soll.shape, L.soll.color, 32) + '<span>' + esc(L.soll.shape) + ' · ' + esc(lower(L.soll.color)) + '</span></div>' +
-        '</div><p class="verdict">' + mk(lidKind) + esc(verdict) + '</p></div>' +
       '<div class="card"><h3>Messung</h3><dl class="kv">' +
         '<dt>Zeitpunkt</dt><dd>' + esc(m.time) + '</dd>' +
         '<dt>Sensor</dt><dd>' + esc(d.station.sensor) + '</dd>' +
@@ -274,7 +277,7 @@
     console.debug('Marker lost');
     if (state.source !== 'marker') return;
     // kurze Wartezeit, damit die Anzeige beim Wackeln nicht flackert
-    lostTimer = window.setTimeout(function () { if (state.source === 'marker') resetScan(); }, 1500);
+    lostTimer = window.setTimeout(function () { if (state.source === 'marker') rescan(); }, 1500);
   });
 
   /* global functions for debugging */
@@ -292,14 +295,15 @@
 
   // AR.js meldet einen Kamerafehler (keine Erlaubnis, keine Kamera) am window
   window.addEventListener('camera-error', function () {
+    state.cameraOk = false;
     setBackdrop('demo');
-    setScanStatus('Keine Kamera verfügbar. Das Demo-Bild ist aktiv.', 'warn');
+    setScanStatus(scanHint(), 'warn');
   });
-  if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+  if (!state.cameraOk) {
     // Kamera braucht https oder localhost
     window.addEventListener('DOMContentLoaded', function () {
       setBackdrop('demo');
-      setScanStatus('Keine Kamera verfügbar (https oder localhost nötig). Das Demo-Bild ist aktiv.', 'warn');
+      setScanStatus('Keine Kamera verfügbar (https oder localhost nötig). Wähle die Station manuell.', 'warn');
     });
   }
 
@@ -341,6 +345,7 @@
       var b = btns[i];
       var on = b.dataset.scenario ? b.dataset.scenario === state.scenario : b.dataset.backdrop === state.backdrop;
       b.setAttribute('aria-pressed', String(on));
+      if (b.dataset.backdrop === 'camera') b.disabled = !state.cameraOk;
     }
   }
   function toggleMenu(open) {
@@ -353,7 +358,8 @@
   $('btn-details').addEventListener('click', openSheet);
   $('btn-close').addEventListener('click', closeSheet);
   $('scrim').addEventListener('click', closeSheet);
-  $('btn-rescan').addEventListener('click', resetScan);
+  $('btn-rescan').addEventListener('click', rescan);
+  $('btn-camera').addEventListener('click', function () { setBackdrop('camera'); });
   $('btn-manual').addEventListener('click', openPicker);
   $('btn-picker-close').addEventListener('click', closePicker);
   $('picker').addEventListener('click', function (e) { if (e.target === $('picker')) closePicker(); });
@@ -377,7 +383,7 @@
 
   /* ---------- Start ---------- */
 
-  window.ARApp = { showStation: showStation, handlePayload: handlePayload, parseStation: parseStation, setScenario: setScenario, resetScan: resetScan };
+  window.ARApp = { showStation: showStation, handlePayload: handlePayload, parseStation: parseStation, setScenario: setScenario, resetScan: resetScan, rescan: rescan };
 
   syncMenu();
   if (params.get('bg') === 'demo') setBackdrop('demo');
