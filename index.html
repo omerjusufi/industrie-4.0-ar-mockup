@@ -2,84 +2,127 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Industrie 4.0 AR Mockup - Testpage</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0a1216">
+  <title>Industrie 4.0 AR Mockup - Station Qualitätskontrolle</title>
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.min.js"></script>
-  <style>
-    :root { color-scheme: dark; }
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      overflow: hidden;
-    }
-
-    #overlay {
-      display: none;
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      z-index: 10;
-      min-width: 220px;
-      padding: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.45);
-      border-radius: 8px;
-      background: rgba(0, 0, 0, 0.55);
-      backdrop-filter: blur(2px);
-      font-size: 16px;
-      color: #fff;
-    }
-
-    /* Kamera-/Canvas-Darstellung */
-    video, canvas {
-      width: 100vw !important;
-      height: 100vh !important;
-      object-fit: contain !important; /* weniger Zoom-Eindruck */
-    }
-  </style>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <link rel="stylesheet" href="css/app.css">
 </head>
-<body>
+<body data-state="ok" data-view="scan">
+  <!-- AR-Szene aus der Vorlage: Kamera und Hiro-Marker.
+       Der Marker steht stellvertretend für den QR-Code der Station 07. -->
   <a-scene
+    id="scene"
     vr-mode-ui="enabled: false"
     renderer="logarithmicDepthBuffer: true"
     embedded
     arjs="sourceType: webcam; facingMode: environment; sourceWidth: 1280; sourceHeight: 720; displayWidth: 1280; displayHeight: 720; debugUIEnabled: false;">
-    <a-marker preset="hiro" id="hiro-marker"></a-marker>
+    <a-marker preset="hiro" id="hiro-marker">
+      <a-ring id="marker-ring" rotation="-90 0 0" radius-inner="0.62" radius-outer="0.78" color="#3ddc84" opacity="0.9"></a-ring>
+    </a-marker>
     <a-entity camera></a-entity>
   </a-scene>
 
-  <div id="overlay">
-    <div id="marker-count">The Marker was not yet found</div>
+  <!-- Ersatz-Hintergrund, wenn keine Kamera verfügbar ist (Demo am Laptop) -->
+  <div id="demo-bg" hidden aria-hidden="true">
+    <svg viewBox="0 0 324 684" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <linearGradient id="canG" x1="0" x2="1"><stop offset="0" stop-color="#7d8f97"/><stop offset=".35" stop-color="#c9d5da"/><stop offset="1" stop-color="#5d6f77"/></linearGradient>
+        <linearGradient id="beamG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6aa8ee" stop-opacity=".38"/><stop offset="1" stop-color="#6aa8ee" stop-opacity=".04"/></linearGradient>
+      </defs>
+      <rect y="470" width="324" height="214" fill="#0e181d"/>
+      <rect x="158" y="120" width="8" height="84" fill="#2b3d45"/>
+      <polygon points="152,246 172,246 216,440 108,440" fill="url(#beamG)"/>
+      <rect x="132" y="200" width="60" height="38" rx="8" fill="#3a525c"/>
+      <circle cx="162" cy="238" r="10" fill="#0a1216" stroke="#6aa8ee" stroke-width="2"/>
+      <polygon points="52,552 272,552 300,596 24,596" fill="#2c3f47"/>
+      <polygon points="24,596 300,596 300,606 24,606" fill="#1b2a30"/>
+      <path d="M114 448 L114 540 A48 12 0 0 0 210 540 L210 448 Z" fill="url(#canG)"/>
+      <rect x="114" y="486" width="96" height="30" fill="rgba(0,0,0,.18)"/>
+      <ellipse cx="162" cy="448" rx="48" ry="12" fill="#dfe8ec"/>
+      <ellipse cx="162" cy="448" rx="41" ry="9" fill="none" stroke="#9fb1b8" stroke-width="1.5"/>
+      <g id="lid-shape" transform="translate(148 441) scale(1 .5)"></g>
+      <rect class="hl" x="100" y="424" width="124" height="138" rx="10"/>
+    </svg>
   </div>
 
-  <script>
-    const overlay = document.getElementById('overlay');
-    const hiroMarker = document.getElementById('hiro-marker');
-    const markerCount = document.getElementById('marker-count');
-    let markerFoundCount = 0;
+  <div id="app">
+    <!-- Kopfzeile: Station und Demo-Menü -->
+    <header class="topbar">
+      <div class="topbar-in">
+        <span class="chip" id="station-chip" hidden><i class="dot"></i><span id="station-name"></span></span>
+        <span class="grow"></span>
+        <button class="chip chip-btn" id="btn-demo-menu" aria-haspopup="true" aria-expanded="false">Demo</button>
+      </div>
+      <div class="menu" id="demo-menu" hidden>
+        <p class="menu-h">Beispiel-Ergebnis</p>
+        <button data-scenario="ok" aria-pressed="true">Bestanden</button>
+        <button data-scenario="nok" aria-pressed="false">Nicht bestanden</button>
+        <button data-scenario="stale" aria-pressed="false">Keine Verbindung</button>
+        <p class="menu-h">Hintergrund</p>
+        <button data-backdrop="camera" aria-pressed="true">Kamera</button>
+        <button data-backdrop="demo" aria-pressed="false">Demo-Bild</button>
+      </div>
+    </header>
 
-    hiroMarker.addEventListener('markerFound', () => {
-      console.debug('Marker found');
-      markerFoundCount += 1;
-      markerCount.textContent = `The Marker was found the ${markerFoundCount} time`;
-      overlay.style.display = 'block';
-    });
+    <!-- 1 Scannen -->
+    <section id="view-scan" class="view scan">
+      <div class="scan-copy">
+        <h1>Station scannen</h1>
+        <p>Halte die Kamera auf den QR-Code an der Station.</p>
+      </div>
+      <div class="finder" aria-hidden="true">
+        <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+        <span class="sweep"></span>
+      </div>
+      <p class="scan-status" id="scan-status" role="status" aria-live="polite">Kamera sucht den QR-Code …</p>
+      <div class="scan-actions">
+        <button class="btn primary" id="btn-demo-start">Ohne Kamera testen</button>
+        <button class="btn link" id="btn-manual">Station manuell wählen</button>
+      </div>
+    </section>
 
-    hiroMarker.addEventListener('markerLost', () => {
-      console.debug('Marker lost');
-      overlay.style.display = 'none';
-    });
+    <!-- 2 AR-Ansicht -->
+    <section id="view-ar" class="view hud" hidden>
+      <div class="banner" id="banner" role="status" aria-live="polite"></div>
+      <div class="spacer"></div>
+      <div class="tag" id="tag"></div>
+      <div class="spacer wide"></div>
+      <div class="bar">
+        <button class="btn" id="btn-rescan" aria-label="Neu scannen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M8 12h8"/></svg>
+        </button>
+        <button class="btn primary" id="btn-details">Details anzeigen</button>
+      </div>
+    </section>
 
-    /* global functions for debugging */
-    window.fireEventMarkerFound = () => {
-      const event = new CustomEvent('markerFound');
-      hiroMarker.dispatchEvent(event);
-    }
+    <!-- 3 Details -->
+    <div class="scrim" id="scrim" hidden></div>
+    <aside class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
+      <div class="sheet-head">
+        <h2 id="sheet-title">Dose</h2>
+        <span class="pill" id="sheet-pill"></span>
+        <button class="btn icon" id="btn-close" aria-label="Details schließen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
+        </button>
+      </div>
+      <div class="sheet-body" id="sheet-body"></div>
+    </aside>
 
-    window.fireEventMarkerLost = () => {
-      const event = new CustomEvent('markerLost');
-      hiroMarker.dispatchEvent(event);
-    }
-  </script>
+    <!-- Manuelle Stationswahl -->
+    <div class="modal" id="picker" role="dialog" aria-modal="true" aria-labelledby="picker-title" hidden>
+      <div class="modal-in">
+        <h2 id="picker-title">Station wählen</h2>
+        <div id="picker-list" class="picker-list"></div>
+        <p class="hint">Weitere Stationen folgen.</p>
+        <button class="btn link" id="btn-picker-close">Schließen</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
