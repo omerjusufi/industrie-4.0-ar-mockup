@@ -7,6 +7,8 @@
  *   - REST        (Aufgabe 6): https://<gateway>/api/p101/vibration?minutes=5 (Verlauf aus SQLite)
  *
  * <gateway> ist die Adresse von Node-RED, z. B. der localhost.run-Tunnel (xyz.lhr.life).
+ * Die Tunnel-Adresse wechselt. Der Pi meldet die aktuelle Adresse per MQTT (retained) unter
+ * bbk/25it1/rpi18/gateway, die Seite übernimmt sie automatisch (abschaltbar unter "Verbindung einstellen").
  * Adressen zum Ausprobieren:
  *   live.html?gateway=xyz.lhr.life
  *   live.html?gateway=http://10.149.41.230:1880   (nur wenn die Seite selbst über http geöffnet ist)
@@ -17,9 +19,12 @@
   var $ = function (id) { return document.getElementById(id); };
   var DEFAULTS = {
     gateway: '',
+    auto: true,              // Gateway-Adresse automatisch aus MQTT übernehmen
     broker: 'wss://broker.hivemq.com:8884/mqtt',
     topic: 'bbk/25it1/rpi18/p101/vibration'
   };
+  var GATEWAY_TOPIC = 'bbk/25it1/rpi18/gateway';
+  var CHANNEL_NAMES = { 'ch-ws': 'WebSocket', 'ch-mqtt': 'MQTT' };
   var WS_PATH = '/ws/p101';
   var REST_PATH = '/api/p101/vibration';
   var STALE_MS = 10000;      // ohne neuen Wert gilt die Anzeige als veraltet
@@ -28,7 +33,8 @@
   var cfg = loadConfig();
   var minutes = 5;
   var latest = null;         // neuester Messwert über alle Kanäle
-  var ws = null, wsTimer = null, wsDelay = 2000;
+  var lastBy = {};           // letzter Messwert je Kanal (ch-ws, ch-mqtt)
+  var ws = null, wsTimer = null, wsDelay = 2000, wsFails = 0;
   var mq = null;
   var restTimer = null, restSeries = [];
 
@@ -39,6 +45,7 @@
     try {
       var saved = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
       ['gateway', 'broker', 'topic'].forEach(function (k) { if (typeof saved[k] === 'string') c[k] = saved[k]; });
+      if (typeof saved.auto === 'boolean') c.auto = saved.auto;
     } catch (e) { /* ohne Speicher geht es auch */ }
     var q = new URLSearchParams(location.search);
     ['gateway', 'broker', 'topic'].forEach(function (k) { if (q.get(k)) c[k] = q.get(k); });
@@ -95,13 +102,22 @@
   }
 
   // Neuer Messwert von WebSocket oder MQTT
-  function onSample(sample, channelId, via) {
+  function onSample(sample, channelId) {
     if (!sample || typeof sample.value !== 'number') return;
     setChannelValue(channelId, sample);
+    lastBy[channelId] = { timestamp: sample.timestamp, at: Date.now() };
     if (!latest || new Date(sample.timestamp) >= new Date(latest.sample.timestamp)) {
-      latest = { sample: sample, via: via, at: Date.now() };
+      latest = { sample: sample, at: Date.now() };
       renderHero();
     }
+  }
+
+  // Über welche Kanäle ist der angezeigte Wert gerade angekommen?
+  function deliveredVia() {
+    return Object.keys(CHANNEL_NAMES).filter(function (id) {
+      var l = lastBy[id];
+      return l && l.timestamp === latest.sample.timestamp && Date.now() - l.at < STALE_MS;
+    }).map(function (id) { return CHANNEL_NAMES[id]; });
   }
 
   function renderHero() {
@@ -113,7 +129,9 @@
     hero.dataset.zone = stale ? 'none' : zoneOf(s);
     $('value').textContent = fmt(s.value, 2);
     $('zone').textContent = stale ? 'Keine aktuellen Daten' : ZONE_TEXT[zoneOf(s)];
-    $('meta').textContent = 'Stand ' + clock(s.timestamp) + ' · empfangen über ' + latest.via +
+    var via = deliveredVia();
+    $('meta').textContent = 'Stand ' + clock(s.timestamp) +
+      (via.length ? ' · empfangen über ' + via.join(' und ') : '') +
       (stale ? ' · letzter Wert vor ' + Math.round(age / 1000) + ' s' : '');
     $('marker').style.left = Math.min(100, Math.max(0, s.value / 20 * 100)) + '%';
   }
@@ -133,13 +151,15 @@
     }
     setChannel('ch-ws', 'wait', 'verbinde …', url);
     try { ws = new WebSocket(url); } catch (e) { setChannel('ch-ws', 'err', 'Adresse ungültig', url); return; }
-    ws.onopen = function () { wsDelay = 2000; setChannel('ch-ws', 'on', 'verbunden'); };
+    ws.onopen = function () { wsDelay = 2000; wsFails = 0; setChannel('ch-ws', 'on', 'verbunden'); };
     ws.onmessage = function (ev) {
-      try { onSample(JSON.parse(ev.data), 'ch-ws', 'WebSocket'); } catch (e) { /* keine JSON-Nachricht */ }
+      try { onSample(JSON.parse(ev.data), 'ch-ws'); } catch (e) { /* keine JSON-Nachricht */ }
     };
     ws.onerror = function () { setChannel('ch-ws', 'err', 'Verbindungsfehler'); };
     ws.onclose = function () {
-      setChannel('ch-ws', 'wait', 'getrennt, neuer Versuch in ' + Math.round(wsDelay / 1000) + ' s');
+      wsFails++;
+      var grund = wsFails >= 2 ? 'nicht erreichbar (Tunnel aus oder Adresse veraltet)' : 'getrennt';
+      setChannel('ch-ws', wsFails >= 2 ? 'err' : 'wait', grund + ', neuer Versuch in ' + Math.round(wsDelay / 1000) + ' s');
       wsTimer = setTimeout(connectWs, wsDelay);
       wsDelay = Math.min(wsDelay * 2, 30000);
     };
@@ -163,6 +183,7 @@
     mq.on('connect', function () {
       setChannel('ch-mqtt', 'on', 'verbunden, abonniert');
       mq.subscribe(cfg.topic, { qos: 0 });
+      mq.subscribe(GATEWAY_TOPIC, { qos: 1 });   // aktuelle Tunnel-Adresse vom Pi (retained)
     });
     mq.on('reconnect', function () { setChannel('ch-mqtt', 'wait', 'verbinde neu …'); });
     mq.on('offline', function () {
@@ -170,8 +191,31 @@
     });
     mq.on('error', function (e) { setChannel('ch-mqtt', 'err', 'Fehler: ' + e.message); });
     mq.on('message', function (topic, payload) {
-      try { onSample(JSON.parse(payload.toString()), 'ch-mqtt', 'MQTT'); } catch (e) { /* keine JSON-Nachricht */ }
+      if (topic === GATEWAY_TOPIC) { onGatewayAnnounced(payload.toString()); return; }
+      try { onSample(JSON.parse(payload.toString()), 'ch-mqtt'); } catch (e) { /* keine JSON-Nachricht */ }
     });
+  }
+
+  // Der Pi meldet bei jedem Tunnel-Start die neue Adresse, z. B. {"gateway":"abc123.lhr.life","since":"…"}.
+  // Eine leere Nachricht heißt: Tunnel ist aus.
+  var announced = null;
+  function onGatewayAnnounced(text) {
+    var gw = '';
+    try { gw = text ? String(JSON.parse(text).gateway || '') : ''; } catch (e) { return; }
+    announced = gw || null;
+    fillForm();
+    if (!cfg.auto) return;
+    if (!gw) {
+      setChannel('ch-ws', 'err', 'Tunnel auf dem Pi ist aus');
+      setChannel('ch-rest', 'err', 'Tunnel auf dem Pi ist aus');
+      return;
+    }
+    if (gw === cfg.gateway) return;
+    cfg.gateway = gw;
+    saveConfig();
+    fillForm();
+    connectWs();
+    loadHistory();
   }
 
   /* ---------- REST-Verlauf (Aufgabe 6) ---------- */
@@ -295,8 +339,12 @@
 
   function fillForm() {
     $('gw').value = cfg.gateway;
+    $('auto').checked = cfg.auto;
     $('broker').value = cfg.broker;
     $('topic').value = cfg.topic;
+    $('auto-info').textContent = announced
+      ? 'Vom Pi gemeldet: ' + announced
+      : 'Noch keine Adresse vom Pi gemeldet (Topic ' + GATEWAY_TOPIC + ').';
     var base = gatewayBase(), w = $('cfg-warn');
     if (base && blockedByMixedContent(base)) {
       w.textContent = 'Diese Seite läuft über https. Der Browser erlaubt dann keine http-Adresse. Nutze die https-Adresse des localhost.run-Tunnels.';
@@ -311,11 +359,13 @@
     connectWs();
     connectMqtt();
     loadHistory();
-    if (!gatewayBase()) $('settings').open = true;
+    // Einstellungen nur aufklappen, wenn auch über MQTT keine Adresse kommt
+    setTimeout(function () { if (!gatewayBase()) $('settings').open = true; }, 8000);
   }
 
   $('cfg').addEventListener('submit', function (e) {
     e.preventDefault();
+    cfg.auto = $('auto').checked;
     cfg.gateway = $('gw').value.trim();
     cfg.broker = $('broker').value.trim() || DEFAULTS.broker;
     cfg.topic = $('topic').value.trim() || DEFAULTS.topic;

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0a1216">
   <title>P-101 Vibration - Live-Daten</title>
-  <link rel="stylesheet" href="css/live.css?v=1">
+  <link rel="stylesheet" href="css/live.css?v=2">
   <!-- MQTT im Browser (über WebSocket), Version fest -->
   <script src="https://cdn.jsdelivr.net/npm/mqtt@5.16.0/dist/mqtt.min.js"></script>
 </head>
@@ -73,6 +73,8 @@
         <label for="gw">Gateway (Node-RED auf dem Pi)</label>
         <input id="gw" name="gw" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="z. B. 1a2b3c4d5e6f.lhr.life">
         <p class="hint">Adresse aus dem localhost.run-Tunnel. Im Schulnetz über http geöffnet geht auch <code>http://10.149.41.230:1880</code>.</p>
+        <label class="check" for="auto"><input id="auto" name="auto" type="checkbox" checked> Adresse automatisch übernehmen, wenn der Pi eine neue meldet (über MQTT)</label>
+        <p class="hint" id="auto-info"></p>
         <label for="broker">MQTT-Broker (WebSocket)</label>
         <input id="broker" name="broker" type="text" inputmode="url" autocomplete="off" spellcheck="false">
         <label for="topic">MQTT-Topic</label>
@@ -86,6 +88,6 @@
     </details>
   </main>
 
-  <script src="js/live.js?v=1"></script>
+  <script src="js/live.js?v=2"></script>
 </body>
 </html>

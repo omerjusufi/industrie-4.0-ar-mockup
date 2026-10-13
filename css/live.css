@@ -104,6 +104,8 @@ button, input { font: inherit; color: inherit; }
 .settings form { display: grid; gap: 6px; margin-top: 12px; }
 .settings label { font-size: 14px; color: var(--muted); margin-top: 6px; }
 .settings input { width: 100%; min-height: 44px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); font-family: var(--mono); font-size: 14px; }
+.settings label.check { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--fg); cursor: pointer; }
+.settings label.check input { width: 20px; height: 20px; min-height: 0; margin: 0; accent-color: var(--ar); }
 .hint { margin: 0; color: var(--muted); font-size: 13px; }
 .hint code { font-family: var(--mono); }
 .warn { margin: 6px 0 0; color: var(--warn); font-size: 14px; }

@@ -54,7 +54,7 @@ js/data.js        Simuliertes Gateway mit Beispieldaten
 assets/           QR-Code der Station 07
 live.html         Live-Daten P-101 (WebSocket, MQTT, REST-Verlauf)
 css/live.css, js/live.js
-nodered/          Node-RED-Flow und Hilfsskript für den Raspberry Pi
+nodered/          Node-RED-Flow, Editor-Passwort-Skript und Tunnel-Dienst für den Raspberry Pi
 ```
 
 Bei Änderungen an `css/` oder `js/` die Nummer hinter `?v=` in der HTML-Datei erhöhen, sonst mischt der Browser
@@ -93,18 +93,32 @@ Jede Nachricht hat diese Form:
 1. Erweiterung installieren: im Editor unter *Palette verwalten* `node-red-contrib-opcua` (getestet mit 0.2.355).
 2. Flow importieren: [`nodered/p101-datenaustausch.json`](nodered/p101-datenaustausch.json) über *Menü → Import*, dann *Deploy*.
 3. Editor-Passwort setzen, bevor der Tunnel läuft: `bash editor-passwort.sh` (Skript aus [`nodered/`](nodered/editor-passwort.sh)).
-4. Tunnel starten (das Terminal muss offen bleiben, die Adresse ändert sich bei jedem Start):
+4. Tunnel als Dienst einrichten (startet beim Hochfahren und nach Abbrüchen neu):
    ```bash
-   ssh -o ServerAliveInterval=60 -R 80:127.0.0.1:1880 nokey@localhost.run
+   cp p101-tunnel.sh ~/ && sudo cp p101-tunnel.service /etc/systemd/system/
+   sudo systemctl daemon-reload && sudo systemctl enable --now p101-tunnel
    ```
-   `127.0.0.1` statt `localhost`, weil `localhost` je nach System auf IPv6 zeigt und der Tunnel dann „502 Bad Gateway“ meldet.
-5. Webapp öffnen: `https://omerjusufi.github.io/industrie-4.0-ar-mockup/live.html?gateway=<tunnel>.lhr.life`
+   Das Skript ruft `ssh -R 80:127.0.0.1:1880 nokey@localhost.run` auf. Es heißt `127.0.0.1` statt `localhost`,
+   weil `localhost` je nach System auf IPv6 zeigt und der Tunnel dann „502 Bad Gateway“ meldet.
+5. Webapp öffnen: `https://omerjusufi.github.io/industrie-4.0-ar-mockup/live.html`
+
+**Wechselnde Tunnel-Adresse:** Kostenlose localhost.run-Adressen ändern sich bei jedem Verbindungsaufbau und nach einigen
+Stunden. Das Skript meldet jede neue Adresse per MQTT als *retained* Nachricht unter `bbk/25it1/rpi18/gateway`.
+Die Webapp liest dieses Topic mit und verbindet WebSocket und REST automatisch neu. Ein alter Link mit `?gateway=…`
+funktioniert deshalb weiter. Die Automatik lässt sich unter *Verbindung einstellen* abschalten.
+
+| Befehl auf dem Pi | Wirkung |
+| --- | --- |
+| `journalctl -u p101-tunnel -o cat \| grep gemeldet \| tail -1` | aktuelle Tunnel-Adresse |
+| `sudo systemctl restart p101-tunnel` | Tunnel neu aufbauen (neue Adresse) |
+| `sudo systemctl disable --now p101-tunnel` | Tunnel aus, auch nach dem Hochfahren |
 
 SQLite braucht keine Zusatzpakete: Node.js 22 bringt `node:sqlite` mit. Für den Raspberry Pi 2 (32 Bit) gibt es
 `node-red-node-sqlite` nicht vorkompiliert, deshalb lädt der Function-Node das eingebaute Modul.
 
 Hinweise:
 - **Editor-Passwort:** Der Tunnel macht den ganzen Node-RED auf Port 1880 öffentlich erreichbar, auch den Editor. Deshalb vorher das Passwort setzen.
+- **Öffentliche Adresse:** Das Topic auf dem öffentlichen HiveMQ-Broker kann jeder lesen, also auch die Tunnel-Adresse. Erreichbar sind darüber nur die Messwerte und die Login-Seite des Editors.
 - **Firewall:** Manche Netze sperren die Ports 1883 und 8884. Im WLAN der Schule kommt die Webapp dann nicht an MQTT, im LAN ging es.
 
 ### Wie kommen später echte Werte in die App?

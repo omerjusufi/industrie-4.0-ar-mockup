@@ -1,0 +1,21 @@
+# localhost.run-Tunnel für Node-RED, startet beim Hochfahren und nach Abbrüchen neu.
+# Installieren:
+#   sudo cp p101-tunnel.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now p101-tunnel
+# Abschalten:
+#   sudo systemctl disable --now p101-tunnel
+[Unit]
+Description=localhost.run-Tunnel zu Node-RED (meldet Adresse per MQTT)
+Wants=network-online.target
+After=network-online.target nodered.service
+
+[Service]
+User=piadmin
+ExecStart=/bin/bash /home/piadmin/p101-tunnel.sh
+# Nach dem Stoppen die gemeldete Adresse löschen, damit die Webapp keine tote Adresse nutzt
+ExecStopPost=/usr/bin/mosquitto_pub -h broker.hivemq.com -t bbk/25it1/rpi18/gateway -r -n
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
