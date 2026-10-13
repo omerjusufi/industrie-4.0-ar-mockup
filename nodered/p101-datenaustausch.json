@@ -1,0 +1,363 @@
+[
+  {
+    "id": "p101tab00000001",
+    "type": "tab",
+    "label": "P-101 Datenaustausch",
+    "disabled": false,
+    "info": "LF7 · Datenaustausch in Node-RED\n\nOPC UA (Milo) → Debug, WebSocket, MQTT (HiveMQ), SQLite und REST.\n\n- WebSocket: `/ws/p101`\n- MQTT-Topic: `bbk/25it1/rpi18/p101/vibration`\n- REST: `GET /api/p101/vibration?minutes=5`"
+  },
+  {
+    "id": "p101opcuaep0001",
+    "type": "OpcUa-Endpoint",
+    "name": "Milo Demo-Server",
+    "endpoint": "opc.tcp://milo.digitalpetri.com:62541/milo",
+    "secpol": "None",
+    "secmode": "None",
+    "none": true,
+    "login": false,
+    "usercert": false,
+    "usercertificate": "",
+    "userprivatekey": ""
+  },
+  {
+    "id": "p101wslistener1",
+    "type": "websocket-listener",
+    "path": "/ws/p101",
+    "wholemsg": "false"
+  },
+  {
+    "id": "p101mqttbroker1",
+    "type": "mqtt-broker",
+    "name": "HiveMQ (öffentlich)",
+    "broker": "broker.hivemq.com",
+    "port": "1883",
+    "clientid": "",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true,
+    "autoUnsubscribe": true,
+    "birthTopic": "",
+    "birthQos": "0",
+    "birthRetain": "false",
+    "birthPayload": "",
+    "birthMsg": {},
+    "closeTopic": "",
+    "closeQos": "0",
+    "closeRetain": "false",
+    "closePayload": "",
+    "closeMsg": {},
+    "willTopic": "",
+    "willQos": "0",
+    "willRetain": "false",
+    "willPayload": "",
+    "willMsg": {},
+    "userProps": "",
+    "sessionExpiry": ""
+  },
+  {
+    "id": "p101comment0001",
+    "type": "comment",
+    "name": "Aufgabe 1 · OPC UA: Vibration von P-101 abonnieren",
+    "info": "Server: opc.tcp://milo.digitalpetri.com:62541/milo (anonym, ohne Verschlüsselung)\nNodeId: ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration\nDatentyp: Double, Einheit mm/s, Bereich 0 bis 20",
+    "x": 210,
+    "y": 40,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101inject00001",
+    "type": "inject",
+    "name": "Start",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "3",
+    "topic": "",
+    "payload": "",
+    "payloadType": "str",
+    "x": 110,
+    "y": 100,
+    "wires": [
+      [
+        "p101opcitem0001"
+      ]
+    ],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101opcitem0001",
+    "type": "OpcUa-Item",
+    "item": "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
+    "datatype": "Double",
+    "value": "",
+    "name": "P-101 Vibration",
+    "x": 290,
+    "y": 100,
+    "wires": [
+      [
+        "p101opcclient01"
+      ]
+    ],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101opcclient01",
+    "type": "OpcUa-Client",
+    "endpoint": "p101opcuaep0001",
+    "action": "subscribe",
+    "deadbandtype": "a",
+    "deadbandvalue": 1,
+    "time": 1,
+    "timeUnit": "s",
+    "certificate": "n",
+    "localfile": "",
+    "localkeyfile": "",
+    "securitymode": "None",
+    "securitypolicy": "None",
+    "useTransport": false,
+    "maxChunkCount": 1,
+    "maxMessageSize": 8192,
+    "receiveBufferSize": 8192,
+    "sendBufferSize": 8192,
+    "setstatusandtime": false,
+    "keepsessionalive": false,
+    "name": "Milo abonnieren (1 s)",
+    "applicationName": "",
+    "applicationUri": "",
+    "x": 500,
+    "y": 100,
+    "wires": [
+      [
+        "p101debugopc001",
+        "p101aufbereit01"
+      ],
+      [],
+      []
+    ],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101debugopc001",
+    "type": "debug",
+    "name": "Vibration (Debug)",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 760,
+    "y": 60,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101aufbereit01",
+    "type": "function",
+    "name": "Messwert aufbereiten",
+    "func": "// Aus dem OPC-UA-Wert ein einheitliches JSON-Objekt machen.\n// Dieses Objekt geht an WebSocket, MQTT und Datenbank.\n\n// Beim Start eines Abonnements meldet der OPC-UA-Client einmal seine\n// Abonnement-Nummer (topic \"subscriptionId\"). Das ist kein Messwert.\nif (msg.topic === \"subscriptionId\") return null;\n\nconst value = Number(msg.payload);\nif (!Number.isFinite(value)) {\n    node.warn(\"Kein Zahlenwert erhalten: \" + msg.payload);\n    return null;\n}\nconst zeit = msg.sourceTimestamp ? new Date(msg.sourceTimestamp) : new Date();\n\nmsg.payload = {\n    source: \"P-101 Vibration\",\n    nodeId: msg.topic,\n    value: Math.round(value * 1000) / 1000,\n    unit: \"mm/s\",\n    timestamp: zeit.toISOString(),\n    // Alarmgrenzen laut OPC-UA-Server (VibrationAlarm: HighLimit / HighHighLimit)\n    limits: { high: 4.5, highHigh: 7.1 }\n};\nnode.status({ fill: \"green\", shape: \"dot\", text: msg.payload.value + \" mm/s\" });\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 770,
+    "y": 140,
+    "wires": [
+      [
+        "p101wsout000001",
+        "p101mqttout0001",
+        "p101dbinsert001"
+      ]
+    ],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101comment0002",
+    "type": "comment",
+    "name": "Aufgabe 2 · WebSocket",
+    "info": "Webapp verbindet sich mit ws://<pi>:1880/ws/p101\nÜber den localhost.run-Tunnel: wss://<tunnel>.lhr.life/ws/p101",
+    "x": 1060,
+    "y": 40,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101wsout000001",
+    "type": "websocket out",
+    "name": "WebSocket /ws/p101",
+    "server": "p101wslistener1",
+    "client": "",
+    "x": 1070,
+    "y": 100,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101comment0003",
+    "type": "comment",
+    "name": "Aufgabe 3 · MQTT (HiveMQ)",
+    "info": "Broker: broker.hivemq.com:1883\nTopic: bbk/25it1/rpi18/p101/vibration\nIm Browser: wss://broker.hivemq.com:8884/mqtt",
+    "x": 1040,
+    "y": 160,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101mqttout0001",
+    "type": "mqtt out",
+    "name": "An HiveMQ senden",
+    "topic": "bbk/25it1/rpi18/p101/vibration",
+    "qos": "0",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "p101mqttbroker1",
+    "x": 1060,
+    "y": 220,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101mqttin00001",
+    "type": "mqtt in",
+    "name": "Kontrolle: Topic mitlesen",
+    "topic": "bbk/25it1/rpi18/p101/vibration",
+    "qos": "0",
+    "datatype": "json",
+    "broker": "p101mqttbroker1",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 1080,
+    "y": 280,
+    "wires": [
+      [
+        "p101debugmqtt01"
+      ]
+    ],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101debugmqtt01",
+    "type": "debug",
+    "name": "MQTT (Debug)",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 1300,
+    "y": 280,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101comment0005",
+    "type": "comment",
+    "name": "Aufgabe 5 · SQLite-Datenbank und REST-Endpunkt",
+    "info": "Datenbank: ~/.node-red/p101.db, Tabelle vibration (ts, value), Werte älter als 24 h werden gelöscht\nREST: GET /api/p101/vibration?minutes=5 (1 bis 60)",
+    "x": 240,
+    "y": 360,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101dbinsert001",
+    "type": "function",
+    "name": "In SQLite speichern",
+    "func": "// Jeden Messwert in die Tabelle \"vibration\" schreiben\nconst db = flow.get(\"p101db\");\nif (!db) {\n    node.error(\"Datenbank ist nicht geöffnet\", msg);\n    return null;\n}\nconst ts = Date.parse(msg.payload.timestamp) || Date.now();\ndb.prepare(\"INSERT INTO vibration (ts, value) VALUES (?, ?)\").run(ts, msg.payload.value);\n\n// Alle 10 Minuten Werte löschen, die älter als 24 Stunden sind (schont die SD-Karte)\nlet zaehler = (context.get(\"zaehler\") || 0) + 1;\nif (zaehler >= 600) {\n    db.prepare(\"DELETE FROM vibration WHERE ts < ?\").run(Date.now() - 24 * 60 * 60 * 1000);\n    zaehler = 0;\n}\ncontext.set(\"zaehler\", zaehler);\n\nconst anzahl = db.prepare(\"SELECT COUNT(*) AS n FROM vibration\").get().n;\nnode.status({ fill: \"green\", shape: \"dot\", text: anzahl + \" Werte gespeichert\" });\nreturn null;\n",
+    "outputs": 0,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "// SQLite ist in Node.js 22 eingebaut (node:sqlite), es muss nichts kompiliert werden.\n// Node-RED erkennt \"node:sqlite\" im Setup-Tab nicht als eingebautes Modul,\n// darum wird es über createRequire aus dem eingebauten Modul \"module\" geladen.\nconst requireBuiltin = moduleLib.createRequire(path.join(os.homedir(), \"/\"));\nconst { DatabaseSync } = requireBuiltin(\"node:sqlite\");\n\n// Datenbankdatei: ~/.node-red/p101.db (oder Umgebungsvariable P101_DB)\nconst datei = env.get(\"P101_DB\") || path.join(os.homedir(), \".node-red\", \"p101.db\");\nfs.mkdirSync(path.dirname(datei), { recursive: true });\n\nconst db = new DatabaseSync(datei);\ndb.exec(`\n    PRAGMA journal_mode = WAL;\n    CREATE TABLE IF NOT EXISTS vibration (\n        ts    INTEGER NOT NULL,  -- Zeitpunkt in ms seit 1970 (UTC)\n        value REAL    NOT NULL   -- Vibration in mm/s\n    );\n    CREATE INDEX IF NOT EXISTS idx_vibration_ts ON vibration (ts);\n`);\n\n// Die Verbindung im Flow-Kontext ablegen, damit der REST-Endpunkt sie mitbenutzt\nflow.set(\"p101db\", db);\nnode.status({ fill: \"grey\", shape: \"ring\", text: \"bereit: \" + path.basename(datei) });\n",
+    "finalize": "// Beim Neu-Deployen oder Stoppen die Datenbank sauber schließen\nconst db = flow.get(\"p101db\");\nif (db) {\n    db.close();\n    flow.set(\"p101db\", undefined);\n}\n",
+    "libs": [
+      {
+        "var": "moduleLib",
+        "module": "module"
+      },
+      {
+        "var": "os",
+        "module": "os"
+      },
+      {
+        "var": "path",
+        "module": "path"
+      },
+      {
+        "var": "fs",
+        "module": "fs"
+      }
+    ],
+    "x": 1080,
+    "y": 340,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101httpin00001",
+    "type": "http in",
+    "name": "",
+    "url": "/api/p101/vibration",
+    "method": "get",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 170,
+    "y": 420,
+    "wires": [
+      [
+        "p101restquery01"
+      ]
+    ],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101restquery01",
+    "type": "function",
+    "name": "Letzte Minuten abfragen",
+    "func": "// GET /api/p101/vibration?minutes=5\n// Liefert die Messwerte der letzten Minuten (Standard 5, höchstens 60) als JSON.\nmsg.headers = {\n    \"Content-Type\": \"application/json\",\n    \"Access-Control-Allow-Origin\": \"*\",   // Webapp auf GitHub Pages darf abfragen\n    \"Cache-Control\": \"no-store\"\n};\n\nconst db = flow.get(\"p101db\");\nif (!db) {\n    msg.statusCode = 503;\n    msg.payload = { error: \"Datenbank nicht bereit\" };\n    return msg;\n}\n\nlet minutes = parseInt(msg.req.query.minutes, 10);\nif (!Number.isFinite(minutes)) minutes = 5;\nminutes = Math.min(Math.max(minutes, 1), 60);\n\nconst seit = Date.now() - minutes * 60 * 1000;\nconst rows = db.prepare(\"SELECT ts, value FROM vibration WHERE ts >= ? ORDER BY ts\").all(seit);\n\nmsg.statusCode = 200;\nmsg.payload = {\n    source: \"P-101 Vibration\",\n    unit: \"mm/s\",\n    minutes: minutes,\n    count: rows.length,\n    data: rows.map(r => ({ timestamp: new Date(r.ts).toISOString(), value: r.value }))\n};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 470,
+    "y": 420,
+    "wires": [
+      [
+        "p101httpres0001"
+      ]
+    ],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101httpres0001",
+    "type": "http response",
+    "name": "JSON-Antwort",
+    "statusCode": "",
+    "headers": {},
+    "x": 710,
+    "y": 420,
+    "wires": [],
+    "z": "p101tab00000001"
+  }
+]

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0a1216">
+  <title>P-101 Vibration - Live-Daten</title>
+  <link rel="stylesheet" href="css/live.css?v=1">
+  <!-- MQTT im Browser (über WebSocket), Version fest -->
+  <script src="https://cdn.jsdelivr.net/npm/mqtt@5.16.0/dist/mqtt.min.js"></script>
+</head>
+<body>
+  <header class="bar">
+    <a class="back" href="./">AR-App</a>
+    <h1>P-101 Vibration</h1>
+    <span class="sub">Milo OPC UA → Node-RED → Webapp</span>
+  </header>
+
+  <main class="wrap">
+    <!-- Aktueller Wert -->
+    <section class="hero" id="hero" data-zone="none" aria-labelledby="hero-label">
+      <p class="eyebrow" id="hero-label">Aktueller Wert</p>
+      <p class="big" aria-live="polite"><span id="value">–</span> <span class="unit">mm/s</span></p>
+      <p class="zone"><span class="pill" id="zone">Warte auf Daten</span></p>
+      <p class="meta" id="meta">Noch kein Messwert empfangen.</p>
+      <div class="scale" aria-hidden="true">
+        <div class="track"><i class="seg ok"></i><i class="seg warn"></i><i class="seg alarm"></i></div>
+        <i class="marker" id="marker"></i>
+        <div class="ticks"><span>0</span><span style="left:22.5%">4,5</span><span style="left:35.5%">7,1</span><span style="left:100%">20</span></div>
+      </div>
+    </section>
+
+    <!-- Die drei Wege, auf denen die Daten ankommen -->
+    <section class="channels" aria-label="Verbindungen">
+      <article class="channel" id="ch-ws" data-state="off">
+        <header><i class="dot"></i><h2>WebSocket</h2><span class="task">Aufgabe 2</span></header>
+        <p class="status">nicht verbunden</p>
+        <p class="last"><span class="v">–</span><span class="t"></span></p>
+        <p class="addr"></p>
+      </article>
+      <article class="channel" id="ch-mqtt" data-state="off">
+        <header><i class="dot"></i><h2>MQTT</h2><span class="task">Aufgabe 4</span></header>
+        <p class="status">nicht verbunden</p>
+        <p class="last"><span class="v">–</span><span class="t"></span></p>
+        <p class="addr"></p>
+      </article>
+      <article class="channel" id="ch-rest" data-state="off">
+        <header><i class="dot"></i><h2>REST-Verlauf</h2><span class="task">Aufgabe 6</span></header>
+        <p class="status">noch nicht abgefragt</p>
+        <p class="last"><span class="v">–</span><span class="t"></span></p>
+        <p class="addr"></p>
+      </article>
+    </section>
+
+    <!-- Verlauf aus der Datenbank -->
+    <section class="card chart-card" aria-labelledby="chart-title">
+      <header class="card-head">
+        <h2 id="chart-title">Verlauf der letzten <span id="minutes-label">5</span> Minuten</h2>
+        <div class="seg-ctl" role="group" aria-label="Zeitraum">
+          <button data-min="5" aria-pressed="true">5 min</button>
+          <button data-min="15" aria-pressed="false">15 min</button>
+          <button data-min="60" aria-pressed="false">60 min</button>
+        </div>
+      </header>
+      <div class="chart" id="chart" role="img" aria-label="Liniendiagramm der Vibration"></div>
+      <p class="chart-foot" id="chart-foot">Daten aus der SQLite-Datenbank auf dem Raspberry Pi, abgefragt über den REST-Endpunkt.</p>
+    </section>
+
+    <!-- Einstellungen -->
+    <details class="card settings" id="settings">
+      <summary>Verbindung einstellen</summary>
+      <form id="cfg" novalidate>
+        <label for="gw">Gateway (Node-RED auf dem Pi)</label>
+        <input id="gw" name="gw" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="z. B. 1a2b3c4d5e6f.lhr.life">
+        <p class="hint">Adresse aus dem localhost.run-Tunnel. Im Schulnetz über http geöffnet geht auch <code>http://10.149.41.230:1880</code>.</p>
+        <label for="broker">MQTT-Broker (WebSocket)</label>
+        <input id="broker" name="broker" type="text" inputmode="url" autocomplete="off" spellcheck="false">
+        <label for="topic">MQTT-Topic</label>
+        <input id="topic" name="topic" type="text" autocomplete="off" spellcheck="false">
+        <p class="warn" id="cfg-warn" hidden></p>
+        <div class="actions">
+          <button type="submit" class="btn primary">Speichern und verbinden</button>
+          <button type="button" class="btn" id="btn-reset">Standard</button>
+        </div>
+      </form>
+    </details>
+  </main>
+
+  <script src="js/live.js?v=1"></script>
+</body>
+</html>

@@ -8,7 +8,7 @@
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/app.css?v=4">
 </head>
 <body data-state="ok" data-view="scan">
   <!-- AR-Szene aus der Vorlage: Kamera und Hiro-Marker.
@@ -63,6 +63,8 @@
         <p class="menu-h">Hintergrund</p>
         <button data-backdrop="camera" aria-pressed="true">Kamera</button>
         <button data-backdrop="demo" aria-pressed="false">Demo-Bild</button>
+        <p class="menu-h">Sensordaten</p>
+        <a class="menu-link" href="live.html">Live-Daten P-101</a>
       </div>
     </header>
 
@@ -122,7 +124,8 @@
     </div>
   </div>
 
-  <script src="js/data.js"></script>
-  <script src="js/app.js"></script>
+  <!-- Bei jeder Änderung an css/js die Nummer hinter ?v= erhöhen, sonst zeigt der Browser gemischte alte und neue Dateien -->
+  <script src="js/data.js?v=3"></script>
+  <script src="js/app.js?v=3"></script>
 </body>
 </html>

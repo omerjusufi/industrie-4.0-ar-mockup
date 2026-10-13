@@ -204,7 +204,12 @@
       state.refreshedAt = Date.now() - data.connection.ageOffsetMs;
       render();
       setView('ar');
-    }).then(function () { state.busy = false; }, function () { state.busy = false; });
+    }).then(function () { state.busy = false; }, function (err) {
+      // Fehler beim Anzeigen (z. B. alte Dateien im Browser-Cache): Nutzer bekommt einen Hinweis statt einer hängenden Anzeige
+      console.error(err);
+      state.busy = false;
+      setScanStatus('Die Anzeige konnte nicht geladen werden. Bitte die Seite neu laden.', 'warn');
+    });
   }
 
   function setScenario(sc) {

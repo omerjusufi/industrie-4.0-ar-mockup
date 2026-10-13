@@ -52,7 +52,60 @@ css/app.css       Aussehen (dunkles Design, Ampelfarben)
 js/app.js         Ablauf: QR (jsQR), Hiro-Marker, Ansichten, Details
 js/data.js        Simuliertes Gateway mit Beispieldaten
 assets/           QR-Code der Station 07
+live.html         Live-Daten P-101 (WebSocket, MQTT, REST-Verlauf)
+css/live.css, js/live.js
+nodered/          Node-RED-Flow und Hilfsskript für den Raspberry Pi
 ```
+
+Bei Änderungen an `css/` oder `js/` die Nummer hinter `?v=` in der HTML-Datei erhöhen, sonst mischt der Browser
+alte und neue Dateien aus dem Cache.
+
+## Datenaustausch in Node-RED (P-101 Vibration)
+
+Node-RED auf dem Raspberry Pi (`rpi18`) liest einen Messwert per OPC UA und gibt ihn auf mehreren Wegen weiter.
+Die Seite [`live.html`](live.html) zeigt ihn an.
+
+```
+Milo OPC UA ──► Node-RED (Pi) ──► Debug                                  Aufgabe 1
+                              ├─► WebSocket /ws/p101 ──► live.html        Aufgabe 2
+                              ├─► MQTT (HiveMQ)      ──► live.html        Aufgabe 3 + 4
+                              └─► SQLite ──► REST /api/p101/vibration ──► live.html (Verlauf)   Aufgabe 5 + 6
+```
+
+| | Wert |
+| --- | --- |
+| OPC-UA-Server | `opc.tcp://milo.digitalpetri.com:62541/milo` (anonym, ohne Verschlüsselung) |
+| NodeId | `ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration` (Double, mm/s, 0 bis 20, Alarm ab 4,5 / 7,1) |
+| WebSocket | `ws://<pi>:1880/ws/p101`, über den Tunnel `wss://<tunnel>.lhr.life/ws/p101` |
+| MQTT | `broker.hivemq.com`, Topic `bbk/25it1/rpi18/p101/vibration`, im Browser `wss://broker.hivemq.com:8884/mqtt` |
+| REST | `GET /api/p101/vibration?minutes=5` (1 bis 60 Minuten), JSON, CORS freigegeben |
+| Datenbank | SQLite-Datei `~/.node-red/p101.db`, Tabelle `vibration (ts, value)`, Werte älter als 24 h werden gelöscht |
+
+Jede Nachricht hat diese Form:
+
+```json
+{ "source": "P-101 Vibration", "nodeId": "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
+  "value": 1.976, "unit": "mm/s", "timestamp": "2026-10-13T11:13:50.695Z", "limits": { "high": 4.5, "highHigh": 7.1 } }
+```
+
+### Einrichtung auf dem Pi
+
+1. Erweiterung installieren: im Editor unter *Palette verwalten* `node-red-contrib-opcua` (getestet mit 0.2.355).
+2. Flow importieren: [`nodered/p101-datenaustausch.json`](nodered/p101-datenaustausch.json) über *Menü → Import*, dann *Deploy*.
+3. Editor-Passwort setzen, bevor der Tunnel läuft: `bash editor-passwort.sh` (Skript aus [`nodered/`](nodered/editor-passwort.sh)).
+4. Tunnel starten (das Terminal muss offen bleiben, die Adresse ändert sich bei jedem Start):
+   ```bash
+   ssh -o ServerAliveInterval=60 -R 80:127.0.0.1:1880 nokey@localhost.run
+   ```
+   `127.0.0.1` statt `localhost`, weil `localhost` je nach System auf IPv6 zeigt und der Tunnel dann „502 Bad Gateway“ meldet.
+5. Webapp öffnen: `https://omerjusufi.github.io/industrie-4.0-ar-mockup/live.html?gateway=<tunnel>.lhr.life`
+
+SQLite braucht keine Zusatzpakete: Node.js 22 bringt `node:sqlite` mit. Für den Raspberry Pi 2 (32 Bit) gibt es
+`node-red-node-sqlite` nicht vorkompiliert, deshalb lädt der Function-Node das eingebaute Modul.
+
+Hinweise:
+- **Editor-Passwort:** Der Tunnel macht den ganzen Node-RED auf Port 1880 öffentlich erreichbar, auch den Editor. Deshalb vorher das Passwort setzen.
+- **Firewall:** Manche Netze sperren die Ports 1883 und 8884. Im WLAN der Schule kommt die Webapp dann nicht an MQTT, im LAN ging es.
 
 ### Wie kommen später echte Werte in die App?
 

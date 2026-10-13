@@ -117,6 +117,10 @@ body[data-view="scan"] #demo-bg svg { opacity: 0.18; } /* beim Scannen nur dezen
 }
 .menu button:disabled { opacity: 0.45; cursor: default; }
 .menu button[aria-pressed="true"] { background: var(--ar); border-color: var(--ar); color: var(--ar-ink); font-weight: 600; }
+.menu-link {
+  display: flex; align-items: center; min-height: 44px; padding: 0 12px;
+  border-radius: 10px; border: 1px solid var(--line); color: var(--ar); font-weight: 600; text-decoration: none;
+}
 
 /* Buttons */
 .btn {
