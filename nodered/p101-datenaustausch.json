@@ -61,7 +61,7 @@
     "type": "comment",
     "name": "Aufgabe 1 · OPC UA: Vibration von P-101 abonnieren",
     "info": "Server: opc.tcp://milo.digitalpetri.com:62541/milo (anonym, ohne Verschlüsselung)\nNodeId: ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration\nDatentyp: Double, Einheit mm/s, Bereich 0 bis 20",
-    "x": 210,
+    "x": 240,
     "y": 40,
     "wires": [],
     "z": "p101tab00000001"
@@ -82,7 +82,7 @@
     "topic": "",
     "payload": "",
     "payloadType": "str",
-    "x": 110,
+    "x": 83,
     "y": 100,
     "wires": [
       [
@@ -98,7 +98,7 @@
     "datatype": "Double",
     "value": "",
     "name": "P-101 Vibration",
-    "x": 290,
+    "x": 277,
     "y": 100,
     "wires": [
       [
@@ -131,7 +131,7 @@
     "name": "Milo abonnieren (1 s)",
     "applicationName": "",
     "applicationUri": "",
-    "x": 500,
+    "x": 530,
     "y": 100,
     "wires": [
       [
@@ -155,8 +155,8 @@
     "targetType": "full",
     "statusVal": "",
     "statusType": "auto",
-    "x": 760,
-    "y": 60,
+    "x": 789,
+    "y": 80,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -171,14 +171,11 @@
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 770,
+    "x": 801,
     "y": 140,
     "wires": [
       [
-        "p101wsout000001",
-        "p101mqttout0001",
-        "p101dbinsert001",
-        "p101fuerdash001"
+        "p101linkout0001"
       ]
     ],
     "z": "p101tab00000001"
@@ -188,8 +185,8 @@
     "type": "comment",
     "name": "Aufgabe 2 · WebSocket",
     "info": "Webapp verbindet sich mit ws://<pi>:1880/ws/p101\nÜber den localhost.run-Tunnel: wss://<tunnel>.lhr.life/ws/p101",
-    "x": 1060,
-    "y": 40,
+    "x": 132,
+    "y": 220,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -199,8 +196,8 @@
     "name": "WebSocket /ws/p101",
     "server": "p101wslistener1",
     "client": "",
-    "x": 1070,
-    "y": 100,
+    "x": 211,
+    "y": 260,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -209,8 +206,8 @@
     "type": "comment",
     "name": "Aufgabe 3 + 4 · MQTT (HiveMQ)",
     "info": "Broker: broker.hivemq.com:1883\nTopic: /bbk-lf7/18/power-house/vibration\nIm Browser: wss://broker.hivemq.com:8884/mqtt",
-    "x": 1040,
-    "y": 160,
+    "x": 162,
+    "y": 320,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -227,8 +224,8 @@
     "correl": "",
     "expiry": "",
     "broker": "p101mqttbroker1",
-    "x": 1060,
-    "y": 220,
+    "x": 204,
+    "y": 360,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -244,8 +241,8 @@
     "rap": true,
     "rh": 0,
     "inputs": 0,
-    "x": 1080,
-    "y": 280,
+    "x": 157,
+    "y": 400,
     "wires": [
       [
         "p101debugmqtt01"
@@ -265,8 +262,8 @@
     "targetType": "msg",
     "statusVal": "",
     "statusType": "auto",
-    "x": 1300,
-    "y": 280,
+    "x": 414,
+    "y": 400,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -275,8 +272,8 @@
     "type": "comment",
     "name": "Aufgabe 5 + 7 · SQLite-Datenbank und REST-Endpunkte",
     "info": "Datenbank: ~/.node-red/p101.db\nRelation: vibration(id, ts, value), Primärschlüssel id, Index auf ts\nWerte älter als 24 h werden gelöscht\n\nGET /api/p101/vibration?minutes=5      Messwerte der letzten Minuten (Aufgabe 7)\nGET /api/p101/vibration/avg?minutes=5  Durchschnitt der letzten Minuten (Aufgabe 5)",
-    "x": 240,
-    "y": 360,
+    "x": 243,
+    "y": 480,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -308,8 +305,8 @@
         "module": "fs"
       }
     ],
-    "x": 1080,
-    "y": 340,
+    "x": 215,
+    "y": 520,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -321,8 +318,8 @@
     "method": "get",
     "upload": false,
     "swaggerDoc": "",
-    "x": 170,
-    "y": 420,
+    "x": 157,
+    "y": 560,
     "wires": [
       [
         "p101restquery01"
@@ -341,8 +338,8 @@
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 470,
-    "y": 420,
+    "x": 455,
+    "y": 560,
     "wires": [
       [
         "p101httpres0001"
@@ -356,8 +353,8 @@
     "name": "JSON-Antwort",
     "statusCode": "",
     "headers": {},
-    "x": 710,
-    "y": 420,
+    "x": 704,
+    "y": 560,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -366,8 +363,8 @@
     "type": "comment",
     "name": "Aufgabe 5 · Durchschnitt der letzten 5 Minuten",
     "info": "SQL:\nSELECT AVG(value) AS avg, MIN(value) AS min, MAX(value) AS max, COUNT(*) AS n\nFROM vibration\nWHERE ts >= ?   -- jetzt minus 5 Minuten in ms",
-    "x": 220,
-    "y": 480,
+    "x": 225,
+    "y": 640,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -379,8 +376,8 @@
     "method": "get",
     "upload": false,
     "swaggerDoc": "",
-    "x": 180,
-    "y": 540,
+    "x": 172,
+    "y": 680,
     "wires": [
       [
         "p101avgfunc0001"
@@ -404,8 +401,8 @@
     "topic": "",
     "payload": "",
     "payloadType": "date",
-    "x": 160,
-    "y": 600,
+    "x": 105,
+    "y": 720,
     "wires": [
       [
         "p101avgfunc0001"
@@ -424,8 +421,8 @@
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 440,
-    "y": 560,
+    "x": 480,
+    "y": 700,
     "wires": [
       [
         "p101httpresavg1"
@@ -442,8 +439,8 @@
     "name": "JSON-Antwort",
     "statusCode": "",
     "headers": {},
-    "x": 690,
-    "y": 540,
+    "x": 725,
+    "y": 680,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -452,8 +449,8 @@
     "type": "comment",
     "name": "Aufgabe 3.1 · Andere Gruppen mithören",
     "info": "Abonniert /bbk-lf7/+/power-house/vibration (wie verlangt, mit Schrägstrich am Anfang)\nund zur Kontrolle bbk-lf7/+/power-house/vibration (falls eine Gruppe den Schrägstrich vergessen hat).\nAuswertung: GET /api/bbk-lf7/gruppen",
-    "x": 200,
-    "y": 680,
+    "x": 191,
+    "y": 800,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -469,8 +466,8 @@
     "rap": true,
     "rh": 0,
     "inputs": 0,
-    "x": 160,
-    "y": 740,
+    "x": 109,
+    "y": 840,
     "wires": [
       [
         "p101gruppen0001"
@@ -490,8 +487,8 @@
     "rap": true,
     "rh": 0,
     "inputs": 0,
-    "x": 180,
-    "y": 780,
+    "x": 142,
+    "y": 880,
     "wires": [
       [
         "p101gruppen0001"
@@ -510,8 +507,8 @@
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 430,
-    "y": 760,
+    "x": 409,
+    "y": 860,
     "wires": [
       [
         "p101debuggrp001"
@@ -531,8 +528,8 @@
     "targetType": "full",
     "statusVal": "",
     "statusType": "auto",
-    "x": 680,
-    "y": 760,
+    "x": 676,
+    "y": 860,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -544,8 +541,8 @@
     "method": "get",
     "upload": false,
     "swaggerDoc": "",
-    "x": 180,
-    "y": 840,
+    "x": 161,
+    "y": 920,
     "wires": [
       [
         "p101grpausgab01"
@@ -564,8 +561,8 @@
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 430,
-    "y": 840,
+    "x": 443,
+    "y": 920,
     "wires": [
       [
         "p101httpresgrp1"
@@ -579,8 +576,8 @@
     "name": "JSON-Antwort",
     "statusCode": "",
     "headers": {},
-    "x": 650,
-    "y": 840,
+    "x": 674,
+    "y": 920,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -692,8 +689,8 @@
     "type": "comment",
     "name": "Aufgabe 10 · Dashboard (FlowFuse Dashboard 2.0)",
     "info": "Erweiterung: @flowfuse/node-red-dashboard\nAufruf: http://<pi>:1880/dashboard",
-    "x": 230,
-    "y": 920,
+    "x": 228,
+    "y": 1000,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -708,8 +705,8 @@
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 200,
-    "y": 980,
+    "x": 237,
+    "y": 1060,
     "wires": [
       [
         "p101uigauge0001",
@@ -762,8 +759,8 @@
     "styleRounded": true,
     "styleGlow": false,
     "className": "",
-    "x": 460,
-    "y": 940,
+    "x": 467,
+    "y": 1040,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -786,8 +783,8 @@
     "className": "",
     "value": "payload",
     "valueType": "msg",
-    "x": 460,
-    "y": 1020,
+    "x": 467,
+    "y": 1120,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -810,8 +807,8 @@
     "className": "",
     "value": "payload",
     "valueType": "msg",
-    "x": 690,
-    "y": 600,
+    "x": 721,
+    "y": 720,
     "wires": [],
     "z": "p101tab00000001"
   },
@@ -870,9 +867,89 @@
     "height": 5,
     "className": "",
     "interpolation": "linear",
-    "x": 460,
-    "y": 980,
+    "x": 467,
+    "y": 1080,
     "wires": [],
     "z": "p101tab00000001"
+  },
+  {
+    "id": "p101linkout0001",
+    "type": "link out",
+    "z": "p101tab00000001",
+    "name": "Messwert",
+    "mode": "link",
+    "links": [
+      "p101linkinws001",
+      "p101linkinmq001",
+      "p101linkindb001",
+      "p101linkinui001"
+    ],
+    "x": 965,
+    "y": 140,
+    "wires": []
+  },
+  {
+    "id": "p101linkinws001",
+    "type": "link in",
+    "z": "p101tab00000001",
+    "name": "Messwert",
+    "links": [
+      "p101linkout0001"
+    ],
+    "x": 45,
+    "y": 260,
+    "wires": [
+      [
+        "p101wsout000001"
+      ]
+    ]
+  },
+  {
+    "id": "p101linkinmq001",
+    "type": "link in",
+    "z": "p101tab00000001",
+    "name": "Messwert",
+    "links": [
+      "p101linkout0001"
+    ],
+    "x": 45,
+    "y": 360,
+    "wires": [
+      [
+        "p101mqttout0001"
+      ]
+    ]
+  },
+  {
+    "id": "p101linkindb001",
+    "type": "link in",
+    "z": "p101tab00000001",
+    "name": "Messwert",
+    "links": [
+      "p101linkout0001"
+    ],
+    "x": 45,
+    "y": 520,
+    "wires": [
+      [
+        "p101dbinsert001"
+      ]
+    ]
+  },
+  {
+    "id": "p101linkinui001",
+    "type": "link in",
+    "z": "p101tab00000001",
+    "name": "Messwert",
+    "links": [
+      "p101linkout0001"
+    ],
+    "x": 45,
+    "y": 1060,
+    "wires": [
+      [
+        "p101fuerdash001"
+      ]
+    ]
   }
 ]
