@@ -3,8 +3,9 @@
  *
  * Holt die Vibrationswerte, die Node-RED vom OPC-UA-Server (Milo) liest, auf drei Wegen:
  *   - WebSocket   (Aufgabe 2): wss://<gateway>/ws/p101
- *   - MQTT        (Aufgabe 4): wss://broker.hivemq.com:8884/mqtt, Topic bbk/25it1/rpi18/p101/vibration
- *   - REST        (Aufgabe 6): https://<gateway>/api/p101/vibration?minutes=5 (Verlauf aus SQLite)
+ *   - MQTT        (Aufgabe 4): wss://broker.hivemq.com:8884/mqtt, Topic /bbk-lf7/18/power-house/vibration
+ *   - REST        (Aufgabe 7/8): https://<gateway>/api/p101/vibration?minutes=5 (Verlauf aus SQLite)
+ *                 (Aufgabe 5):   https://<gateway>/api/p101/vibration/avg?minutes=5 (Durchschnitt)
  *
  * <gateway> ist die Adresse von Node-RED, z. B. der localhost.run-Tunnel (xyz.lhr.life).
  * Die Tunnel-Adresse wechselt. Der Pi meldet die aktuelle Adresse per MQTT (retained) unter
@@ -21,12 +22,15 @@
     gateway: '',
     auto: true,              // Gateway-Adresse automatisch aus MQTT übernehmen
     broker: 'wss://broker.hivemq.com:8884/mqtt',
-    topic: 'bbk/25it1/rpi18/p101/vibration'
+    topic: '/bbk-lf7/18/power-house/vibration'
   };
+  // Frühere Standard-Topics: im Browser gespeicherte Einstellungen damit auf das neue Topic umstellen
+  var OLD_TOPICS = ['bbk/25it1/rpi18/p101/vibration'];
   var GATEWAY_TOPIC = 'bbk/25it1/rpi18/gateway';
   var CHANNEL_NAMES = { 'ch-ws': 'WebSocket', 'ch-mqtt': 'MQTT' };
   var WS_PATH = '/ws/p101';
   var REST_PATH = '/api/p101/vibration';
+  var AVG_PATH = '/api/p101/vibration/avg';
   var STALE_MS = 10000;      // ohne neuen Wert gilt die Anzeige als veraltet
   var STORE_KEY = 'p101-live-config';
 
@@ -46,6 +50,7 @@
       var saved = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
       ['gateway', 'broker', 'topic'].forEach(function (k) { if (typeof saved[k] === 'string') c[k] = saved[k]; });
       if (typeof saved.auto === 'boolean') c.auto = saved.auto;
+      if (OLD_TOPICS.indexOf(c.topic) >= 0) c.topic = DEFAULTS.topic;
     } catch (e) { /* ohne Speicher geht es auch */ }
     var q = new URLSearchParams(location.search);
     ['gateway', 'broker', 'topic'].forEach(function (k) { if (q.get(k)) c[k] = q.get(k); });
@@ -218,7 +223,7 @@
     loadHistory();
   }
 
-  /* ---------- REST-Verlauf (Aufgabe 6) ---------- */
+  /* ---------- REST-Verlauf (Aufgabe 7 und 8) und Durchschnitt (Aufgabe 5) ---------- */
 
   function refreshMs() { return minutes <= 5 ? 5000 : minutes <= 15 ? 10000 : 30000; }
 
@@ -253,6 +258,23 @@
         setChannel('ch-rest', 'err', 'Abfrage fehlgeschlagen (' + e.message + ')');
       })
       .then(function () { restTimer = setTimeout(loadHistory, refreshMs()); });
+    loadAverage(base);
+  }
+
+  // Durchschnitt rechnet der Pi per SQL aus (AVG über die letzten Minuten)
+  function loadAverage(base) {
+    var el = $('avg');
+    fetch(base + AVG_PATH + '?minutes=' + minutes, { cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (j) {
+        el.textContent = j.count
+          ? 'Ø ' + fmt(j.average, 2) + ' mm/s · min ' + fmt(j.min, 2) + ' · max ' + fmt(j.max, 2) + ' (' + j.count + ' Werte)'
+          : 'Ø noch keine Werte';
+      })
+      .catch(function () { el.textContent = 'Ø nicht verfügbar'; });
   }
 
   /* ---------- Diagramm (SVG) ---------- */

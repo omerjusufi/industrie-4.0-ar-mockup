@@ -4,7 +4,7 @@
     "type": "tab",
     "label": "P-101 Datenaustausch",
     "disabled": false,
-    "info": "LF7 · Datenaustausch in Node-RED\n\nOPC UA (Milo) → Debug, WebSocket, MQTT (HiveMQ), SQLite und REST.\n\n- WebSocket: `/ws/p101`\n- MQTT-Topic: `bbk/25it1/rpi18/p101/vibration`\n- REST: `GET /api/p101/vibration?minutes=5`"
+    "info": "LF7 · Datenaustausch in Node-RED\n\nOPC UA (Milo) → Debug, WebSocket, MQTT (HiveMQ), SQLite, REST und Dashboard 2.0.\n\n- WebSocket: `/ws/p101`\n- MQTT-Topic: `/bbk-lf7/18/power-house/vibration`\n- Andere Gruppen: `/bbk-lf7/+/power-house/vibration`, Auswertung unter `GET /api/bbk-lf7/gruppen`\n- REST: `GET /api/p101/vibration?minutes=5` (Messwerte) und `GET /api/p101/vibration/avg?minutes=5` (Durchschnitt)\n- Dashboard: `/dashboard`"
   },
   {
     "id": "p101opcuaep0001",
@@ -177,7 +177,8 @@
       [
         "p101wsout000001",
         "p101mqttout0001",
-        "p101dbinsert001"
+        "p101dbinsert001",
+        "p101fuerdash001"
       ]
     ],
     "z": "p101tab00000001"
@@ -206,8 +207,8 @@
   {
     "id": "p101comment0003",
     "type": "comment",
-    "name": "Aufgabe 3 · MQTT (HiveMQ)",
-    "info": "Broker: broker.hivemq.com:1883\nTopic: bbk/25it1/rpi18/p101/vibration\nIm Browser: wss://broker.hivemq.com:8884/mqtt",
+    "name": "Aufgabe 3 + 4 · MQTT (HiveMQ)",
+    "info": "Broker: broker.hivemq.com:1883\nTopic: /bbk-lf7/18/power-house/vibration\nIm Browser: wss://broker.hivemq.com:8884/mqtt",
     "x": 1040,
     "y": 160,
     "wires": [],
@@ -217,7 +218,7 @@
     "id": "p101mqttout0001",
     "type": "mqtt out",
     "name": "An HiveMQ senden",
-    "topic": "bbk/25it1/rpi18/p101/vibration",
+    "topic": "/bbk-lf7/18/power-house/vibration",
     "qos": "0",
     "retain": "false",
     "respTopic": "",
@@ -235,7 +236,7 @@
     "id": "p101mqttin00001",
     "type": "mqtt in",
     "name": "Kontrolle: Topic mitlesen",
-    "topic": "bbk/25it1/rpi18/p101/vibration",
+    "topic": "/bbk-lf7/18/power-house/vibration",
     "qos": "0",
     "datatype": "json",
     "broker": "p101mqttbroker1",
@@ -272,8 +273,8 @@
   {
     "id": "p101comment0005",
     "type": "comment",
-    "name": "Aufgabe 5 · SQLite-Datenbank und REST-Endpunkt",
-    "info": "Datenbank: ~/.node-red/p101.db, Tabelle vibration (ts, value), Werte älter als 24 h werden gelöscht\nREST: GET /api/p101/vibration?minutes=5 (1 bis 60)",
+    "name": "Aufgabe 5 + 7 · SQLite-Datenbank und REST-Endpunkte",
+    "info": "Datenbank: ~/.node-red/p101.db\nRelation: vibration(id, ts, value), Primärschlüssel id, Index auf ts\nWerte älter als 24 h werden gelöscht\n\nGET /api/p101/vibration?minutes=5      Messwerte der letzten Minuten (Aufgabe 7)\nGET /api/p101/vibration/avg?minutes=5  Durchschnitt der letzten Minuten (Aufgabe 5)",
     "x": 240,
     "y": 360,
     "wires": [],
@@ -287,7 +288,7 @@
     "outputs": 0,
     "timeout": 0,
     "noerr": 0,
-    "initialize": "// SQLite ist in Node.js 22 eingebaut (node:sqlite), es muss nichts kompiliert werden.\n// Node-RED erkennt \"node:sqlite\" im Setup-Tab nicht als eingebautes Modul,\n// darum wird es über createRequire aus dem eingebauten Modul \"module\" geladen.\nconst requireBuiltin = moduleLib.createRequire(path.join(os.homedir(), \"/\"));\nconst { DatabaseSync } = requireBuiltin(\"node:sqlite\");\n\n// Datenbankdatei: ~/.node-red/p101.db (oder Umgebungsvariable P101_DB)\nconst datei = env.get(\"P101_DB\") || path.join(os.homedir(), \".node-red\", \"p101.db\");\nfs.mkdirSync(path.dirname(datei), { recursive: true });\n\nconst db = new DatabaseSync(datei);\ndb.exec(`\n    PRAGMA journal_mode = WAL;\n    CREATE TABLE IF NOT EXISTS vibration (\n        ts    INTEGER NOT NULL,  -- Zeitpunkt in ms seit 1970 (UTC)\n        value REAL    NOT NULL   -- Vibration in mm/s\n    );\n    CREATE INDEX IF NOT EXISTS idx_vibration_ts ON vibration (ts);\n`);\n\n// Die Verbindung im Flow-Kontext ablegen, damit der REST-Endpunkt sie mitbenutzt\nflow.set(\"p101db\", db);\nnode.status({ fill: \"grey\", shape: \"ring\", text: \"bereit: \" + path.basename(datei) });\n",
+    "initialize": "// SQLite ist in Node.js 22 eingebaut (node:sqlite), es muss nichts kompiliert werden.\n// Node-RED erkennt \"node:sqlite\" im Setup-Tab nicht als eingebautes Modul,\n// darum wird es über createRequire aus dem eingebauten Modul \"module\" geladen.\nconst requireBuiltin = moduleLib.createRequire(path.join(os.homedir(), \"/\"));\nconst { DatabaseSync } = requireBuiltin(\"node:sqlite\");\n\n// Datenbankdatei: ~/.node-red/p101.db (oder Umgebungsvariable P101_DB)\nconst datei = env.get(\"P101_DB\") || path.join(os.homedir(), \".node-red\", \"p101.db\");\nfs.mkdirSync(path.dirname(datei), { recursive: true });\n\nconst db = new DatabaseSync(datei);\ndb.exec(\"PRAGMA journal_mode = WAL;\");\n\n// Die erste Version der Tabelle hatte keine id-Spalte. Einmalig umbauen und die Werte übernehmen.\nconst spalten = db.prepare(\"PRAGMA table_info(vibration)\").all().map(s => s.name);\nif (spalten.length > 0 && !spalten.includes(\"id\")) {\n    db.exec(`\n        BEGIN;\n        ALTER TABLE vibration RENAME TO vibration_alt;\n        CREATE TABLE vibration (\n            id    INTEGER PRIMARY KEY,\n            ts    INTEGER NOT NULL,\n            value REAL    NOT NULL\n        );\n        INSERT INTO vibration (id, ts, value) SELECT rowid, ts, value FROM vibration_alt ORDER BY rowid;\n        DROP TABLE vibration_alt;\n        COMMIT;\n    `);\n    node.warn(\"Tabelle vibration auf Primärschlüssel id umgestellt\");\n}\n\n// Relation: vibration(id, ts, value)\ndb.exec(`\n    CREATE TABLE IF NOT EXISTS vibration (\n        id    INTEGER PRIMARY KEY,   -- fortlaufende Nummer, Primärschlüssel\n        ts    INTEGER NOT NULL,      -- Zeitpunkt der Messung in ms seit 1970 (UTC)\n        value REAL    NOT NULL       -- Vibration in mm/s\n    );\n    CREATE INDEX IF NOT EXISTS idx_vibration_ts ON vibration (ts);\n`);\n\n// Die Verbindung im Flow-Kontext ablegen, damit die REST-Endpunkte sie mitbenutzen\nflow.set(\"p101db\", db);\nnode.status({ fill: \"grey\", shape: \"ring\", text: \"bereit: \" + path.basename(datei) });\n",
     "finalize": "// Beim Neu-Deployen oder Stoppen die Datenbank sauber schließen\nconst db = flow.get(\"p101db\");\nif (db) {\n    db.close();\n    flow.set(\"p101db\", undefined);\n}\n",
     "libs": [
       {
@@ -357,6 +358,520 @@
     "headers": {},
     "x": 710,
     "y": 420,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101comment0006",
+    "type": "comment",
+    "name": "Aufgabe 5 · Durchschnitt der letzten 5 Minuten",
+    "info": "SQL:\nSELECT AVG(value) AS avg, MIN(value) AS min, MAX(value) AS max, COUNT(*) AS n\nFROM vibration\nWHERE ts >= ?   -- jetzt minus 5 Minuten in ms",
+    "x": 220,
+    "y": 480,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101httpinavg01",
+    "type": "http in",
+    "name": "",
+    "url": "/api/p101/vibration/avg",
+    "method": "get",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 180,
+    "y": 540,
+    "wires": [
+      [
+        "p101avgfunc0001"
+      ]
+    ],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101avginject01",
+    "type": "inject",
+    "name": "alle 10 s",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "10",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "5",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 160,
+    "y": 600,
+    "wires": [
+      [
+        "p101avgfunc0001"
+      ]
+    ],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101avgfunc0001",
+    "type": "function",
+    "name": "Durchschnitt berechnen",
+    "func": "// Durchschnitt der letzten Minuten (Standard 5, höchstens 60).\n// Kommt die Nachricht vom REST-Endpunkt (msg.req), geht die Antwort an Ausgang 1.\n// Kommt sie vom Zeitgeber, geht ein Text an das Dashboard (Ausgang 2).\nconst db = flow.get(\"p101db\");\nconst vomRest = !!msg.req;\n\nif (vomRest) {\n    msg.headers = {\n        \"Content-Type\": \"application/json\",\n        \"Access-Control-Allow-Origin\": \"*\",   // Webapp auf GitHub Pages darf abfragen\n        \"Cache-Control\": \"no-store\"\n    };\n}\nif (!db) {\n    if (!vomRest) return null;\n    msg.statusCode = 503;\n    msg.payload = { error: \"Datenbank nicht bereit\" };\n    return [msg, null];\n}\n\nlet minutes = vomRest ? parseInt(msg.req.query.minutes, 10) : 5;\nif (!Number.isFinite(minutes)) minutes = 5;\nminutes = Math.min(Math.max(minutes, 1), 60);\nconst seit = Date.now() - minutes * 60 * 1000;\n\nconst r = db.prepare(`\n    SELECT AVG(value) AS avg, MIN(value) AS min, MAX(value) AS max, COUNT(*) AS n\n    FROM vibration\n    WHERE ts >= ?\n`).get(seit);\n\nconst runden = v => (v === null || v === undefined) ? null : Math.round(v * 1000) / 1000;\nconst ergebnis = {\n    source: \"P-101 Vibration\",\n    unit: \"mm/s\",\n    minutes: minutes,\n    count: r.n,\n    average: runden(r.avg),\n    min: runden(r.min),\n    max: runden(r.max)\n};\n\nif (vomRest) {\n    msg.statusCode = 200;\n    msg.payload = ergebnis;\n    return [msg, null];\n}\nconst text = ergebnis.count\n    ? ergebnis.average.toFixed(2).replace(\".\", \",\") + \" mm/s (\" + ergebnis.count + \" Werte)\"\n    : \"noch keine Werte\";\nnode.status({ text: \"Ø \" + text });\nreturn [null, { payload: text }];\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 440,
+    "y": 560,
+    "wires": [
+      [
+        "p101httpresavg1"
+      ],
+      [
+        "p101uitextavg01"
+      ]
+    ],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101httpresavg1",
+    "type": "http response",
+    "name": "JSON-Antwort",
+    "statusCode": "",
+    "headers": {},
+    "x": 690,
+    "y": 540,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101comment0031",
+    "type": "comment",
+    "name": "Aufgabe 3.1 · Andere Gruppen mithören",
+    "info": "Abonniert /bbk-lf7/+/power-house/vibration (wie verlangt, mit Schrägstrich am Anfang)\nund zur Kontrolle bbk-lf7/+/power-house/vibration (falls eine Gruppe den Schrägstrich vergessen hat).\nAuswertung: GET /api/bbk-lf7/gruppen",
+    "x": 200,
+    "y": 680,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101mqttinall01",
+    "type": "mqtt in",
+    "name": "Alle Gruppen",
+    "topic": "/bbk-lf7/+/power-house/vibration",
+    "qos": "0",
+    "datatype": "utf8",
+    "broker": "p101mqttbroker1",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 160,
+    "y": 740,
+    "wires": [
+      [
+        "p101gruppen0001"
+      ]
+    ],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101mqttinall02",
+    "type": "mqtt in",
+    "name": "Alle Gruppen (ohne /)",
+    "topic": "bbk-lf7/+/power-house/vibration",
+    "qos": "0",
+    "datatype": "utf8",
+    "broker": "p101mqttbroker1",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 180,
+    "y": 780,
+    "wires": [
+      [
+        "p101gruppen0001"
+      ]
+    ],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101gruppen0001",
+    "type": "function",
+    "name": "Gruppen vergleichen",
+    "func": "// Wertet jede Nachricht unter /bbk-lf7/<kiste>/power-house/vibration aus,\n// auch die eigene. Je Topic wird festgehalten, wie oft, in welchem Format und mit welchen Werten gesendet wird.\nconst teile = msg.topic.split(\"/\");\nconst stelle = teile.indexOf(\"bbk-lf7\");\nconst kiste = stelle >= 0 ? teile[stelle + 1] : \"?\";\nconst roh = Buffer.isBuffer(msg.payload) ? msg.payload.toString(\"utf8\") : String(msg.payload);\n\nlet format = \"Text\", wert = null, felder = [];\ntry {\n    const obj = JSON.parse(roh);\n    if (typeof obj === \"number\") {\n        format = \"Zahl\";\n        wert = obj;\n    } else if (obj && typeof obj === \"object\") {\n        format = Array.isArray(obj) ? \"JSON-Liste\" : \"JSON-Objekt\";\n        felder = Array.isArray(obj) ? [] : Object.keys(obj).sort();\n        const kandidat = [obj.value, obj.vibration, obj.wert, obj.payload].find(v => typeof v === \"number\");\n        if (kandidat !== undefined) wert = kandidat;\n    } else {\n        format = \"JSON (\" + typeof obj + \")\";\n    }\n} catch (e) {\n    if (/^\\s*-?\\d+([.,]\\d+)?\\s*$/.test(roh)) {\n        format = \"Zahl als Text\";\n        wert = parseFloat(roh.replace(\",\", \".\"));\n    }\n}\n\nconst EIGENE_KISTE = \"18\";\nconst jetzt = Date.now();\nconst alle = flow.get(\"gruppen\") || {};\nconst g = alle[msg.topic] || {\n    topic: msg.topic, kiste: kiste, eigene: kiste === EIGENE_KISTE,\n    anzahl: 0, erste: jetzt, bytes: 0, retained: 0, formate: {}, felder: [],\n    min: null, max: null, summe: 0, werteAnzahl: 0\n};\ng.anzahl++;\ng.letzte = jetzt;\ng.bytes += Buffer.byteLength(roh);\nif (msg.retain) g.retained++;\ng.formate[format] = (g.formate[format] || 0) + 1;\ng.felder = [...new Set(g.felder.concat(felder))].sort();\nif (wert !== null && Number.isFinite(wert)) {\n    g.min = g.min === null ? wert : Math.min(g.min, wert);\n    g.max = g.max === null ? wert : Math.max(g.max, wert);\n    g.summe += wert;\n    g.werteAnzahl++;\n    g.letzterWert = wert;\n}\ng.beispiel = roh.slice(0, 300);\nalle[msg.topic] = g;\nflow.set(\"gruppen\", alle);\n\nconst fremde = Object.values(alle).filter(x => !x.eigene).length;\nnode.status({ fill: fremde ? \"green\" : \"grey\", shape: \"dot\", text: fremde + \" fremde Gruppen gehört\" });\nmsg.kiste = kiste;\nmsg.format = format;\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 430,
+    "y": 760,
+    "wires": [
+      [
+        "p101debuggrp001"
+      ]
+    ],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101debuggrp001",
+    "type": "debug",
+    "name": "Fremde Topics (Debug)",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 680,
+    "y": 760,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101httpingrp01",
+    "type": "http in",
+    "name": "",
+    "url": "/api/bbk-lf7/gruppen",
+    "method": "get",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 180,
+    "y": 840,
+    "wires": [
+      [
+        "p101grpausgab01"
+      ]
+    ],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101grpausgab01",
+    "type": "function",
+    "name": "Vergleich ausgeben",
+    "func": "// GET /api/bbk-lf7/gruppen: Vergleich aller gehörten Topics als JSON\nmsg.headers = {\n    \"Content-Type\": \"application/json\",\n    \"Access-Control-Allow-Origin\": \"*\",\n    \"Cache-Control\": \"no-store\"\n};\nconst jetzt = Date.now();\nconst runden = v => (v === null || v === undefined) ? null : Math.round(v * 1000) / 1000;\nconst alle = Object.values(flow.get(\"gruppen\") || {});\nmsg.payload = {\n    seit: alle.length ? new Date(Math.min(...alle.map(g => g.erste))).toISOString() : null,\n    gruppen: alle.sort((a, b) => a.topic.localeCompare(b.topic, \"de\", { numeric: true })).map(g => {\n        const sekunden = Math.max((g.letzte - g.erste) / 1000, 1);\n        return {\n            topic: g.topic,\n            kiste: g.kiste,\n            eigene: g.eigene,\n            nachrichten: g.anzahl,\n            proMinute: g.anzahl > 1 ? Math.round((g.anzahl - 1) / sekunden * 60 * 10) / 10 : null,\n            zuletztVorSekunden: Math.round((jetzt - g.letzte) / 1000),\n            durchschnittBytes: Math.round(g.bytes / g.anzahl),\n            retained: g.retained,\n            formate: g.formate,\n            felder: g.felder,\n            werte: g.werteAnzahl ? { min: runden(g.min), max: runden(g.max), durchschnitt: runden(g.summe / g.werteAnzahl), letzter: runden(g.letzterWert) } : null,\n            beispiel: g.beispiel\n        };\n    })\n};\nmsg.statusCode = 200;\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 430,
+    "y": 840,
+    "wires": [
+      [
+        "p101httpresgrp1"
+      ]
+    ],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101httpresgrp1",
+    "type": "http response",
+    "name": "JSON-Antwort",
+    "statusCode": "",
+    "headers": {},
+    "x": 650,
+    "y": 840,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101uibase00001",
+    "type": "ui-base",
+    "name": "LF7 Dashboard",
+    "path": "/dashboard",
+    "appIcon": "",
+    "includeClientData": true,
+    "acceptsClientConfig": [
+      "ui-notification",
+      "ui-control"
+    ],
+    "showPathInSidebar": false,
+    "headerContent": "page",
+    "navigationStyle": "default",
+    "titleBarStyle": "default",
+    "showReconnectNotification": true,
+    "notificationDisplayTime": 1,
+    "showDisconnectNotification": true,
+    "allowInstall": false
+  },
+  {
+    "id": "p101uitheme0001",
+    "type": "ui-theme",
+    "name": "LF7 Theme",
+    "colors": {
+      "surface": "#0f1b20",
+      "primary": "#2b6cb0",
+      "bgPage": "#f2f6f7",
+      "groupBg": "#ffffff",
+      "groupOutline": "#d2dde0"
+    },
+    "sizes": {
+      "density": "default",
+      "pagePadding": "12px",
+      "groupGap": "12px",
+      "groupBorderRadius": "8px",
+      "widgetGap": "12px"
+    }
+  },
+  {
+    "id": "p101uipage00001",
+    "type": "ui-page",
+    "name": "P-101 Vibration",
+    "ui": "p101uibase00001",
+    "path": "/p101",
+    "icon": "chart-line",
+    "layout": "grid",
+    "theme": "p101uitheme0001",
+    "breakpoints": [
+      {
+        "name": "Default",
+        "px": "0",
+        "cols": "3"
+      },
+      {
+        "name": "Tablet",
+        "px": "576",
+        "cols": "6"
+      },
+      {
+        "name": "Small Desktop",
+        "px": "768",
+        "cols": "9"
+      },
+      {
+        "name": "Desktop",
+        "px": "1024",
+        "cols": "12"
+      }
+    ],
+    "order": 1,
+    "className": "",
+    "visible": "true",
+    "disabled": "false"
+  },
+  {
+    "id": "p101uigroup0001",
+    "type": "ui-group",
+    "name": "Aktueller Messwert",
+    "page": "p101uipage00001",
+    "width": "4",
+    "height": "1",
+    "order": 1,
+    "showTitle": true,
+    "className": "",
+    "visible": "true",
+    "disabled": "false",
+    "groupType": "default"
+  },
+  {
+    "id": "p101uigroup0002",
+    "type": "ui-group",
+    "name": "Verlauf der letzten 5 Minuten",
+    "page": "p101uipage00001",
+    "width": "8",
+    "height": "1",
+    "order": 2,
+    "showTitle": true,
+    "className": "",
+    "visible": "true",
+    "disabled": "false",
+    "groupType": "default"
+  },
+  {
+    "id": "p101comment0010",
+    "type": "comment",
+    "name": "Aufgabe 10 · Dashboard (FlowFuse Dashboard 2.0)",
+    "info": "Erweiterung: @flowfuse/node-red-dashboard\nAufruf: http://<pi>:1880/dashboard",
+    "x": 230,
+    "y": 920,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101fuerdash001",
+    "type": "function",
+    "name": "Für Dashboard aufbereiten",
+    "func": "// Messwert für das Dashboard aufbereiten:\n// Ausgang 1: Zahl für Tacho und Diagramm, Ausgang 2: Text mit Wert und Uhrzeit\nconst wert = msg.payload.value;\nconst zeit = new Date(msg.payload.timestamp).toLocaleTimeString(\"de-DE\", { timeZone: \"Europe/Berlin\" });\nreturn [\n    { payload: Math.round(wert * 100) / 100, topic: \"P-101\" },\n    { payload: wert.toFixed(2).replace(\".\", \",\") + \" mm/s um \" + zeit }\n];\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 200,
+    "y": 980,
+    "wires": [
+      [
+        "p101uigauge0001",
+        "p101uichart0001"
+      ],
+      [
+        "p101uitextnow01"
+      ]
+    ],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101uigauge0001",
+    "type": "ui-gauge",
+    "name": "Tacho",
+    "group": "p101uigroup0001",
+    "order": 1,
+    "value": "payload",
+    "valueType": "msg",
+    "width": 4,
+    "height": 3,
+    "gtype": "gauge-half",
+    "gstyle": "needle",
+    "title": "Vibration P-101",
+    "alwaysShowTitle": false,
+    "floatingTitlePosition": "top-left",
+    "units": "mm/s",
+    "icon": "",
+    "prefix": "",
+    "suffix": "",
+    "segments": [
+      {
+        "color": "#5CD65C",
+        "from": 0
+      },
+      {
+        "color": "#FFC800",
+        "from": 4.5
+      },
+      {
+        "color": "#EA5353",
+        "from": 7.1
+      }
+    ],
+    "min": 0,
+    "max": 20,
+    "sizeThickness": 16,
+    "sizeGap": 4,
+    "sizeKeyThickness": 8,
+    "styleRounded": true,
+    "styleGlow": false,
+    "className": "",
+    "x": 460,
+    "y": 940,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101uitextnow01",
+    "type": "ui-text",
+    "group": "p101uigroup0001",
+    "order": 2,
+    "width": 0,
+    "height": 0,
+    "name": "Messwert",
+    "label": "Messwert",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "style": false,
+    "font": "",
+    "fontSize": 16,
+    "color": "#717171",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg",
+    "x": 460,
+    "y": 1020,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101uitextavg01",
+    "type": "ui-text",
+    "group": "p101uigroup0001",
+    "order": 3,
+    "width": 0,
+    "height": 0,
+    "name": "Ø 5 Minuten",
+    "label": "Ø letzte 5 Minuten",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "style": false,
+    "font": "",
+    "fontSize": 16,
+    "color": "#717171",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg",
+    "x": 690,
+    "y": 600,
+    "wires": [],
+    "z": "p101tab00000001"
+  },
+  {
+    "id": "p101uichart0001",
+    "type": "ui-chart",
+    "group": "p101uigroup0002",
+    "name": "Verlauf",
+    "label": "Vibration in mm/s",
+    "order": 1,
+    "chartType": "line",
+    "category": "topic",
+    "categoryType": "msg",
+    "xAxisLabel": "",
+    "xAxisProperty": "",
+    "xAxisPropertyType": "timestamp",
+    "xAxisType": "time",
+    "xAxisFormat": "",
+    "xAxisFormatType": "auto",
+    "xmin": "",
+    "xmax": "",
+    "yAxisLabel": "mm/s",
+    "yAxisProperty": "payload",
+    "yAxisPropertyType": "msg",
+    "ymin": "0",
+    "ymax": "",
+    "bins": 10,
+    "action": "append",
+    "stackSeries": false,
+    "pointShape": "false",
+    "pointRadius": 0,
+    "showLegend": false,
+    "removeOlder": "5",
+    "removeOlderUnit": "60",
+    "removeOlderPoints": "",
+    "colors": [
+      "#2b6cb0",
+      "#FF0000",
+      "#FF7F0E",
+      "#2CA02C",
+      "#A347E1",
+      "#D62728",
+      "#FF9896",
+      "#9467BD",
+      "#C5B0D5"
+    ],
+    "textColor": [
+      "#666666"
+    ],
+    "textColorDefault": true,
+    "gridColor": [
+      "#e5e5e5"
+    ],
+    "gridColorDefault": true,
+    "width": 8,
+    "height": 5,
+    "className": "",
+    "interpolation": "linear",
+    "x": 460,
+    "y": 980,
     "wires": [],
     "z": "p101tab00000001"
   }

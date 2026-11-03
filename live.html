@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0a1216">
   <title>P-101 Vibration - Live-Daten</title>
-  <link rel="stylesheet" href="css/live.css?v=2">
+  <link rel="stylesheet" href="css/live.css?v=3">
   <!-- MQTT im Browser (über WebSocket), Version fest -->
   <script src="https://cdn.jsdelivr.net/npm/mqtt@5.16.0/dist/mqtt.min.js"></script>
 </head>
@@ -45,7 +45,7 @@
         <p class="addr"></p>
       </article>
       <article class="channel" id="ch-rest" data-state="off">
-        <header><i class="dot"></i><h2>REST-Verlauf</h2><span class="task">Aufgabe 6</span></header>
+        <header><i class="dot"></i><h2>REST-Verlauf</h2><span class="task">Aufgabe 7 + 8</span></header>
         <p class="status">noch nicht abgefragt</p>
         <p class="last"><span class="v">–</span><span class="t"></span></p>
         <p class="addr"></p>
@@ -62,8 +62,9 @@
           <button data-min="60" aria-pressed="false">60 min</button>
         </div>
       </header>
+      <p class="avg"><span class="task">Aufgabe 5</span> <span id="avg">Ø wird geladen …</span></p>
       <div class="chart" id="chart" role="img" aria-label="Liniendiagramm der Vibration"></div>
-      <p class="chart-foot" id="chart-foot">Daten aus der SQLite-Datenbank auf dem Raspberry Pi, abgefragt über den REST-Endpunkt.</p>
+      <p class="chart-foot" id="chart-foot">Daten aus der SQLite-Datenbank auf dem Raspberry Pi, abgefragt über die REST-Endpunkte. Den Durchschnitt rechnet die Datenbank per SQL aus.</p>
     </section>
 
     <!-- Einstellungen -->
@@ -88,6 +89,6 @@
     </details>
   </main>
 
-  <script src="js/live.js?v=2"></script>
+  <script src="js/live.js?v=3"></script>
 </body>
 </html>

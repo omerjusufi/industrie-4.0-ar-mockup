@@ -66,10 +66,13 @@ Node-RED auf dem Raspberry Pi (`rpi18`) liest einen Messwert per OPC UA und gibt
 Die Seite [`live.html`](live.html) zeigt ihn an.
 
 ```
-Milo OPC UA ──► Node-RED (Pi) ──► Debug                                  Aufgabe 1
-                              ├─► WebSocket /ws/p101 ──► live.html        Aufgabe 2
-                              ├─► MQTT (HiveMQ)      ──► live.html        Aufgabe 3 + 4
-                              └─► SQLite ──► REST /api/p101/vibration ──► live.html (Verlauf)   Aufgabe 5 + 6
+Milo OPC UA ──► Node-RED (Pi) ──► Debug                                          Aufgabe 1
+                              ├─► WebSocket /ws/p101 ──► live.html                Aufgabe 2
+                              ├─► MQTT (HiveMQ)      ──► live.html                Aufgabe 3 + 4
+                              ├─► SQLite ──► REST /api/p101/vibration/avg          Aufgabe 5 (Durchschnitt)
+                              │          └─► REST /api/p101/vibration ──► live.html  Aufgabe 7 + 8 (Verlauf)
+                              └─► Dashboard 2.0 /dashboard                         Aufgabe 10
+HiveMQ /bbk-lf7/+/power-house/vibration ──► Node-RED ──► REST /api/bbk-lf7/gruppen  Aufgabe 3.1
 ```
 
 | | Wert |
@@ -77,9 +80,11 @@ Milo OPC UA ──► Node-RED (Pi) ──► Debug                             
 | OPC-UA-Server | `opc.tcp://milo.digitalpetri.com:62541/milo` (anonym, ohne Verschlüsselung) |
 | NodeId | `ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration` (Double, mm/s, 0 bis 20, Alarm ab 4,5 / 7,1) |
 | WebSocket | `ws://<pi>:1880/ws/p101`, über den Tunnel `wss://<tunnel>.lhr.life/ws/p101` |
-| MQTT | `broker.hivemq.com`, Topic `bbk/25it1/rpi18/p101/vibration`, im Browser `wss://broker.hivemq.com:8884/mqtt` |
-| REST | `GET /api/p101/vibration?minutes=5` (1 bis 60 Minuten), JSON, CORS freigegeben |
-| Datenbank | SQLite-Datei `~/.node-red/p101.db`, Tabelle `vibration (ts, value)`, Werte älter als 24 h werden gelöscht |
+| MQTT | `broker.hivemq.com`, Topic `/bbk-lf7/18/power-house/vibration` (18 = Kistennummer), im Browser `wss://broker.hivemq.com:8884/mqtt` |
+| Andere Gruppen | abonniert `/bbk-lf7/+/power-house/vibration`, Vergleich unter `GET /api/bbk-lf7/gruppen` |
+| REST | `GET /api/p101/vibration?minutes=5` Messwerte, `GET /api/p101/vibration/avg?minutes=5` Durchschnitt (je 1 bis 60 Minuten), JSON, CORS freigegeben |
+| Datenbank | SQLite-Datei `~/.node-red/p101.db`, Relation `vibration(id, ts, value)`, Werte älter als 24 h werden gelöscht |
+| Dashboard | `http://<pi>:1880/dashboard` (FlowFuse Node-RED Dashboard 2.0): Tacho, aktueller Wert, Ø 5 Minuten, Verlauf |
 
 Jede Nachricht hat diese Form:
 
@@ -90,7 +95,8 @@ Jede Nachricht hat diese Form:
 
 ### Einrichtung auf dem Pi
 
-1. Erweiterung installieren: im Editor unter *Palette verwalten* `node-red-contrib-opcua` (getestet mit 0.2.355).
+1. Erweiterungen installieren: im Editor unter *Palette verwalten* `node-red-contrib-opcua` (getestet mit 0.2.355)
+   und `@flowfuse/node-red-dashboard` (getestet mit 1.34.1).
 2. Flow importieren: [`nodered/p101-datenaustausch.json`](nodered/p101-datenaustausch.json) über *Menü → Import*, dann *Deploy*.
 3. Editor-Passwort setzen, bevor der Tunnel läuft: `bash editor-passwort.sh` (Skript aus [`nodered/`](nodered/editor-passwort.sh)).
 4. Tunnel als Dienst einrichten (startet beim Hochfahren und nach Abbrüchen neu):
@@ -112,6 +118,33 @@ funktioniert deshalb weiter. Die Automatik lässt sich unter *Verbindung einstel
 | `journalctl -u p101-tunnel -o cat \| grep gemeldet \| tail -1` | aktuelle Tunnel-Adresse |
 | `sudo systemctl restart p101-tunnel` | Tunnel neu aufbauen (neue Adresse) |
 | `sudo systemctl disable --now p101-tunnel` | Tunnel aus, auch nach dem Hochfahren |
+
+### Datenbank (Aufgabe 5.1 und 5.2)
+
+Relationsschema: `vibration(id, ts, value)`, Primärschlüssel `id`
+
+| Attribut | Typ | Bedeutung |
+| --- | --- | --- |
+| `id` | INTEGER, Primärschlüssel | fortlaufende Nummer |
+| `ts` | INTEGER, NOT NULL, Index | Zeitpunkt der Messung in Millisekunden seit 1970 (UTC) |
+| `value` | REAL, NOT NULL | Vibration in mm/s |
+
+Durchschnitt der letzten 5 Minuten (`?` = jetzt minus 5 Minuten in ms):
+
+```sql
+SELECT AVG(value) AS avg, MIN(value) AS min, MAX(value) AS max, COUNT(*) AS n
+FROM vibration
+WHERE ts >= ?;
+```
+
+Messwerte der letzten 5 Minuten:
+
+```sql
+SELECT ts, value FROM vibration WHERE ts >= ? ORDER BY ts;
+```
+
+Die erste Version der Tabelle hatte keine `id`-Spalte. Der Flow baut eine solche Tabelle beim Start einmal um und
+übernimmt dabei alle Werte.
 
 SQLite braucht keine Zusatzpakete: Node.js 22 bringt `node:sqlite` mit. Für den Raspberry Pi 2 (32 Bit) gibt es
 `node-red-node-sqlite` nicht vorkompiliert, deshalb lädt der Function-Node das eingebaute Modul.
