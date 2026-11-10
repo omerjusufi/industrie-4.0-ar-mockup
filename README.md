@@ -71,7 +71,11 @@ Milo OPC UA ──► Node-RED (Pi) ──► Debug                             
                               ├─► MQTT (HiveMQ)      ──► live.html                Aufgabe 3 + 4
                               ├─► SQLite ──► REST /api/p101/vibration/avg          Aufgabe 5 (Durchschnitt)
                               │          └─► REST /api/p101/vibration ──► live.html  Aufgabe 7 + 8 (Verlauf)
-                              └─► Dashboard 2.0 /dashboard                         Aufgabe 10
+                              ├─► Dashboard 2.0 /dashboard                         Aufgabe 10
+                              ├─► Grenzen überwachen ─┐                            Extra 1
+                              └─► Ausfall überwachen ─┴─► Meldung ──► MQTT …/alarm, …/status,
+                                                                      SQLite, Dashboard-Popup,
+                                                                      REST /api/p101/meldungen  Extra 1 + 2
 HiveMQ /bbk-lf7/+/power-house/vibration ──► Node-RED ──► REST /api/bbk-lf7/gruppen  Aufgabe 3.1
 ```
 
@@ -84,7 +88,8 @@ HiveMQ /bbk-lf7/+/power-house/vibration ──► Node-RED ──► REST /api/b
 | Andere Gruppen | abonniert `/bbk-lf7/+/power-house/vibration`, Vergleich unter `GET /api/bbk-lf7/gruppen` |
 | REST | `GET /api/p101/vibration?minutes=5` Messwerte, `GET /api/p101/vibration/avg?minutes=5` Durchschnitt (je 1 bis 60 Minuten), JSON, CORS freigegeben |
 | Datenbank | SQLite-Datei `~/.node-red/p101.db`, Relation `vibration(id, ts, value)`, Werte älter als 24 h werden gelöscht |
-| Dashboard | `http://<pi>:1880/dashboard` (FlowFuse Node-RED Dashboard 2.0): Tacho, aktueller Wert, Ø 5 Minuten, Verlauf |
+| Dashboard | `http://<pi>:1880/dashboard` (FlowFuse Node-RED Dashboard 2.0): Tacho, aktueller Wert, Ø 5 Minuten, Grenzwerte, Datenfluss, Verlauf, Popup bei jeder Meldung |
+| Meldungen | MQTT `/bbk-lf7/18/power-house/vibration/alarm` und `…/status` (retained, QoS 2), `GET /api/p101/meldungen?minutes=60` |
 
 Jede Nachricht hat diese Form:
 
@@ -148,6 +153,52 @@ Die erste Version der Tabelle hatte keine `id`-Spalte. Der Flow baut eine solche
 
 SQLite braucht keine Zusatzpakete: Node.js 22 bringt `node:sqlite` mit. Für den Raspberry Pi 2 (32 Bit) gibt es
 `node-red-node-sqlite` nicht vorkompiliert, deshalb lädt der Function-Node das eingebaute Modul.
+
+### Extra 1: Alarm mit Entwarnungsschwelle
+
+Der Function-Node *Grenzen überwachen* kennt drei Stufen. Eine Stufe gilt, bis der Wert unter ihre niedrigere
+Entwarnungsschwelle fällt (Hysterese). Pendelt der Wert knapp um eine Grenze, bleibt es so bei einer Meldung.
+
+| Stufe | ab | Entwarnung unter |
+| --- | --- | --- |
+| Warnung | 4,5 mm/s | 4,0 mm/s |
+| Alarm | 7,1 mm/s | 6,5 mm/s |
+
+Eine Meldung geht nur raus, wenn sich die Stufe ändert: *Warnung*, *Alarm* oder *Entwarnung*. Nach einem Deploy oder
+Neustart übernimmt der Node die zuletzt gespeicherte Stufe aus der Datenbank, damit ein laufender Alarm nicht ein
+zweites Mal gemeldet wird. Mit den Milo-Werten gibt es etwa alle 3:50 Minuten einen Zyklus aus vier Meldungen.
+Das Signal von Milo ist glatt, deshalb zeigt erst der Inject *Test: Werte pendeln um 7,1* den Unterschied:
+Die Testfolge ergibt 4 Meldungen, ohne Entwarnungsschwelle wären es 12 (Ergebnis im Debug-Fenster).
+
+### Extra 2: Ausfall erkennen
+
+Der Function-Node *Ausfall überwachen* bekommt jeden Messwert und alle 2 Sekunden einen Takt. Kommt länger als
+10 Sekunden kein Wert (nach Deploy oder Neustart 30 Sekunden), meldet er einmal *Ausfall*, beim nächsten Wert einmal
+*Wieder da* mit der Dauer. Test: Inject *Test: Ausfall 20 s*, dann verwirft *Messwert aufbereiten* 20 Sekunden lang
+alle Werte, auf allen Wegen.
+
+Fällt der ganze Pi oder der Tunnel aus, kann er selbst nichts mehr melden. Dann meldet sich die Webapp: Kommt
+10 Sekunden lang kein neuer Wert, zeigt sie oben „Keine Messwerte mehr seit …“, ohne Werte seit dem Öffnen nach
+20 Sekunden einen Hinweis.
+
+Jede Meldung geht an MQTT (retained, damit neue Abonnenten den Zustand sofort kennen), in die Tabelle `meldung`,
+als Popup ins Dashboard und an das Debug-Fenster:
+
+```json
+{ "art": "alarm", "ereignis": "Alarm", "zustand": "alarm", "vorher": "warnung", "wert": 7.153, "grenze": 7.1,
+  "text": "Alarm: 7,15 mm/s (ab 7,1). Entwarnung erst unter 6,5 mm/s.", "timestamp": "2026-11-10T11:29:01.449Z" }
+```
+
+Relation `meldung(id, ts, art, ereignis, zustand, wert, text)`, Primärschlüssel `id`, Meldungen älter als 7 Tage
+werden gelöscht. `GET /api/p101/meldungen?minutes=60` liefert den aktuellen Zustand beider Überwachungen und die
+Meldungen (neueste zuerst):
+
+```sql
+SELECT ts, art, ereignis, zustand, wert, text FROM meldung WHERE ts >= ? ORDER BY ts DESC LIMIT 200;
+```
+
+Das MQTT-Topic ist öffentlich. Jeder könnte dort eine falsche Meldung einstellen, die Webapp zeigt den Text deshalb
+nur als Text an, nie als HTML.
 
 Hinweise:
 - **Editor-Passwort:** Der Tunnel macht den ganzen Node-RED auf Port 1880 öffentlich erreichbar, auch den Editor. Deshalb vorher das Passwort setzen.

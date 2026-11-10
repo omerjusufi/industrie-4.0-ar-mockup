@@ -7,6 +7,11 @@
  *   - REST        (Aufgabe 7/8): https://<gateway>/api/p101/vibration?minutes=5 (Verlauf aus SQLite)
  *                 (Aufgabe 5):   https://<gateway>/api/p101/vibration/avg?minutes=5 (Durchschnitt)
  *
+ * Meldungen vom Pi (Extra 1: Alarm mit Entwarnungsschwelle, Extra 2: Ausfall erkennen):
+ *   - MQTT <topic>/alarm und <topic>/status (retained, jede Meldung genau einmal)
+ *   - REST https://<gateway>/api/p101/meldungen?minutes=60 (aktueller Zustand und letzte Meldungen)
+ * Kommen gar keine Werte mehr an, meldet die Seite das auch selbst, statt still den alten Wert zu zeigen.
+ *
  * <gateway> ist die Adresse von Node-RED, z. B. der localhost.run-Tunnel (xyz.lhr.life).
  * Die Tunnel-Adresse wechselt. Der Pi meldet die aktuelle Adresse per MQTT (retained) unter
  * bbk/25it1/rpi18/gateway, die Seite übernimmt sie automatisch (abschaltbar unter "Verbindung einstellen").
@@ -31,16 +36,22 @@
   var WS_PATH = '/ws/p101';
   var REST_PATH = '/api/p101/vibration';
   var AVG_PATH = '/api/p101/vibration/avg';
+  var EVENTS_PATH = '/api/p101/meldungen';
   var STALE_MS = 10000;      // ohne neuen Wert gilt die Anzeige als veraltet
+  var NO_DATA_MS = 20000;    // so lange nach dem Öffnen ohne jeden Wert: Hinweis statt Schweigen
   var STORE_KEY = 'p101-live-config';
 
   var cfg = loadConfig();
   var minutes = 5;
+  var pageStart = Date.now();
   var latest = null;         // neuester Messwert über alle Kanäle
-  var lastBy = {};           // letzter Messwert je Kanal (ch-ws, ch-mqtt)
+  var lastBy = {};           // letzter Messwert je Kanal (ch-ws, ch-mqtt, ch-rest)
   var ws = null, wsTimer = null, wsDelay = 2000, wsFails = 0;
   var mq = null;
   var restTimer = null, restSeries = [];
+  var alarmState = null;     // vom Pi: { zustand: normal | warnung | alarm, seit }
+  var dataState = null;      // vom Pi: { zustand: ok | ausfall, seit, text }
+  var events = {};           // Meldungen nach Schlüssel, so steht jede nur einmal in der Liste
 
   /* ---------- Einstellungen ---------- */
 
@@ -86,6 +97,13 @@
     var d = new Date(iso);
     return isNaN(d) ? '' : d.toLocaleTimeString('de-DE');
   }
+  // Uhrzeit, bei einem anderen Tag mit Datum davor
+  function when(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return '';
+    var heute = d.toDateString() === new Date().toDateString();
+    return (heute ? '' : d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) + ' ') + clock(iso);
+  }
   function zoneOf(sample) {
     var lim = sample.limits || { high: 4.5, highHigh: 7.1 };
     if (sample.value >= lim.highHigh) return 'alarm';
@@ -106,12 +124,13 @@
     el.querySelector('.last .t').textContent = clock(sample.timestamp);
   }
 
-  // Neuer Messwert von WebSocket oder MQTT
+  // Neuer Messwert von WebSocket, MQTT oder REST.
+  // Nur ein wirklich neuerer Wert zählt, sonst würde der immer gleiche letzte REST-Wert einen Ausfall verdecken.
   function onSample(sample, channelId) {
     if (!sample || typeof sample.value !== 'number') return;
     setChannelValue(channelId, sample);
     lastBy[channelId] = { timestamp: sample.timestamp, at: Date.now() };
-    if (!latest || new Date(sample.timestamp) >= new Date(latest.sample.timestamp)) {
+    if (!latest || new Date(sample.timestamp) > new Date(latest.sample.timestamp)) {
       latest = { sample: sample, at: Date.now() };
       renderHero();
     }
@@ -189,6 +208,7 @@
       setChannel('ch-mqtt', 'on', 'verbunden, abonniert');
       mq.subscribe(cfg.topic, { qos: 0 });
       mq.subscribe(GATEWAY_TOPIC, { qos: 1 });   // aktuelle Tunnel-Adresse vom Pi (retained)
+      mq.subscribe([alarmTopic(), statusTopic()], { qos: 2 });   // Meldungen (retained, genau einmal)
     });
     mq.on('reconnect', function () { setChannel('ch-mqtt', 'wait', 'verbinde neu …'); });
     mq.on('offline', function () {
@@ -197,6 +217,7 @@
     mq.on('error', function (e) { setChannel('ch-mqtt', 'err', 'Fehler: ' + e.message); });
     mq.on('message', function (topic, payload) {
       if (topic === GATEWAY_TOPIC) { onGatewayAnnounced(payload.toString()); return; }
+      if (topic === alarmTopic() || topic === statusTopic()) { onMeldung(payload.toString()); return; }
       try { onSample(JSON.parse(payload.toString()), 'ch-mqtt'); } catch (e) { /* keine JSON-Nachricht */ }
     });
   }
@@ -251,7 +272,7 @@
         restSeries = (j.data || []).map(function (d) { return { t: new Date(d.timestamp).getTime(), v: d.value }; });
         setChannel('ch-rest', 'on', j.count + ' Werte · alle ' + refreshMs() / 1000 + ' s aktualisiert');
         var last = j.data && j.data[j.data.length - 1];
-        if (last) setChannelValue('ch-rest', last);
+        if (last) onSample(last, 'ch-rest');
         drawChart(restSeries);
       })
       .catch(function (e) {
@@ -259,6 +280,7 @@
       })
       .then(function () { restTimer = setTimeout(loadHistory, refreshMs()); });
     loadAverage(base);
+    loadEvents(base);
   }
 
   // Durchschnitt rechnet der Pi per SQL aus (AVG über die letzten Minuten)
@@ -276,6 +298,127 @@
       })
       .catch(function () { el.textContent = 'Ø nicht verfügbar'; });
   }
+
+  /* ---------- Meldungen (Extra 1: Alarm mit Entwarnungsschwelle, Extra 2: Ausfall) ---------- */
+
+  function alarmTopic() { return cfg.topic + '/alarm'; }
+  function statusTopic() { return cfg.topic + '/status'; }
+
+  var LEVEL = { 'Alarm': 'alarm', 'Warnung': 'warn', 'Entwarnung': 'ok', 'Ausfall': 'alarm', 'Wieder da': 'ok' };
+  var STUFE = { normal: ['ok', 'Normal'], warnung: ['warn', 'Warnung'], alarm: ['alarm', 'Alarm'] };
+
+  // Meldung per MQTT, z. B. {"art":"alarm","ereignis":"Alarm","zustand":"alarm","wert":7.13,"text":"…","timestamp":"…"}
+  function onMeldung(text) {
+    var m;
+    try { m = JSON.parse(text); } catch (e) { return; }
+    if (!m || !m.ereignis || !m.timestamp) return;
+    addEvent(m);
+    if (m.art === 'alarm') alarmState = { zustand: m.zustand, seit: m.timestamp };
+    if (m.art === 'ausfall') dataState = { zustand: m.zustand, seit: m.seit, text: m.text };
+    renderEvents();
+    renderAlerts();
+  }
+
+  function addEvent(m) {
+    events[m.art + '|' + m.ereignis + '|' + new Date(m.timestamp).getTime()] = m;
+  }
+
+  // Zustand und letzte Meldungen per REST, falls MQTT gesperrt ist oder die Seite gerade erst geöffnet wurde
+  function loadEvents(base) {
+    fetch(base + EVENTS_PATH + '?minutes=60', { cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (j) {
+        (j.data || []).forEach(addEvent);
+        var z = j.zustand || {};
+        if (z.grenzwerte) alarmState = { zustand: z.grenzwerte.zustand, seit: z.grenzwerte.seit };
+        if (z.datenfluss) dataState = { zustand: z.datenfluss.zustand, seit: z.datenfluss.seit };
+        renderEvents();
+        renderAlerts();
+      })
+      .catch(function () { /* Meldungen kommen auch per MQTT */ });
+  }
+
+  function renderEvents() {
+    var keys = Object.keys(events).sort(function (a, b) {
+      return new Date(events[b].timestamp) - new Date(events[a].timestamp);
+    });
+    keys.slice(50).forEach(function (k) { delete events[k]; });
+    var ol = $('events');
+    ol.textContent = '';
+    if (!keys.length) {
+      var leer = document.createElement('li');
+      leer.className = 'empty';
+      leer.textContent = 'Noch keine Meldungen';
+      ol.appendChild(leer);
+      return;
+    }
+    keys.slice(0, 8).forEach(function (k) {
+      var m = events[k];
+      var li = document.createElement('li');
+      li.dataset.level = LEVEL[m.ereignis] || 'none';
+      var t = document.createElement('time');
+      t.dateTime = m.timestamp;
+      t.textContent = when(m.timestamp);
+      var e = document.createElement('span');
+      e.className = 'e';
+      e.textContent = m.ereignis;
+      var x = document.createElement('span');
+      x.className = 'x';
+      x.textContent = m.text;   // Text aus MQTT nie als HTML einsetzen: das Topic ist öffentlich
+      li.append(t, e, x);
+      ol.appendChild(li);
+    });
+  }
+
+  function setState(el, level, text) {
+    el.dataset.level = level;
+    el.querySelector('.v').textContent = text;
+  }
+
+  function renderAlerts() {
+    var now = Date.now();
+    var stale = !!latest && now - latest.at > STALE_MS;
+    var none = !latest && now - pageStart > NO_DATA_MS;
+    var ausfall = dataState && dataState.zustand === 'ausfall';
+
+    if (alarmState && STUFE[alarmState.zustand]) {
+      var s = STUFE[alarmState.zustand];
+      setState($('st-alarm'), s[0], s[1] + (alarmState.seit ? ' seit ' + when(alarmState.seit) : '') +
+        (stale || ausfall ? ' (letzter bekannter Stand)' : ''));
+    }
+
+    if (ausfall) setState($('st-data'), 'alarm', 'Ausfall seit ' + when(dataState.seit) + ', vom Pi gemeldet');
+    else if (stale) setState($('st-data'), 'alarm', 'Keine Werte seit ' + when(latest.sample.timestamp) + ', der Pi meldet nichts');
+    else if (none) setState($('st-data'), 'alarm', 'Noch kein Messwert angekommen');
+    else if (latest) setState($('st-data'), 'ok', 'Werte kommen');
+
+    // Banner oben: Ausfall vor Alarm, weil ein Alarm ohne aktuelle Werte nichts mehr aussagt
+    var level = null, text = '';
+    if (ausfall) {
+      level = 'alarm';
+      text = dataState.text || 'Ausfall: Seit ' + when(dataState.seit) + ' kommen keine Messwerte vom OPC-UA-Server.';
+    } else if (stale) {
+      level = 'alarm';
+      text = 'Keine Messwerte mehr seit ' + when(latest.sample.timestamp) +
+        '. Der Pi meldet keinen Ausfall, also sind wohl Pi, Tunnel oder Broker nicht erreichbar.';
+    } else if (none) {
+      level = 'warn';
+      text = 'Noch kein Messwert angekommen. Bitte Pi, Tunnel und Broker prüfen (unten unter "Verbindung einstellen").';
+    } else if (alarmState && alarmState.zustand === 'alarm') {
+      level = 'alarm';
+      text = 'Alarm seit ' + when(alarmState.seit) + ': Vibration ab 7,1 mm/s. Entwarnung erst unter 6,5 mm/s.';
+    }
+    var b = $('banner');
+    b.hidden = !level;
+    if (level) {
+      b.dataset.level = level;
+      if (b.textContent !== text) b.textContent = text;   // gleicher Text: nicht erneut vorlesen lassen
+    }
+  }
+  setInterval(renderAlerts, 1000);
 
   /* ---------- Diagramm (SVG) ---------- */
 

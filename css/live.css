@@ -63,6 +63,31 @@ button, input { font: inherit; color: inherit; }
 .ticks span:first-child { transform: none; }
 .ticks span:last-child { transform: translateX(-100%); }
 
+/* Meldungen (Extra 1 + 2) */
+.banner {
+  margin: 0; padding: 12px 16px; border-radius: 14px; font-weight: 600; --bc: var(--nok);
+  color: var(--bc); background: color-mix(in srgb, var(--bc) 14%, var(--panel)); border: 1.5px solid var(--bc);
+}
+.banner[data-level="warn"] { --bc: var(--warn); }
+.alerts .states { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; margin-top: 12px; }
+.state { margin: 0; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--panel-2); --dc: var(--muted); }
+.state[data-level="ok"], .events li[data-level="ok"] { --dc: var(--ok); }
+.state[data-level="warn"], .events li[data-level="warn"] { --dc: var(--warn); }
+.state[data-level="alarm"], .events li[data-level="alarm"] { --dc: var(--nok); }
+.state .k { color: var(--muted); font-size: 14px; }
+.state .v { margin-left: auto; text-align: right; color: var(--dc); font-weight: 600; font-size: 14px; }
+.events { list-style: none; margin: 12px 0 0; padding: 0; }
+.events li { display: grid; grid-template-columns: auto auto 1fr; gap: 2px 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; --dc: var(--muted); }
+.events li.empty { display: block; color: var(--muted); }
+.events time { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.events .e { font-weight: 600; color: var(--dc); }
+.events .x { min-width: 0; }
+.alerts .hint { margin-top: 10px; }
+@media (max-width: 520px) {
+  .events li { grid-template-columns: auto 1fr; }
+  .events .x { grid-column: 1 / -1; }
+}
+
 /* Verbindungen */
 .channels { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .channel { padding: 14px 16px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); min-width: 0; --dc: var(--muted); }

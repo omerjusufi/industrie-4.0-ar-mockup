@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0a1216">
   <title>P-101 Vibration - Live-Daten</title>
-  <link rel="stylesheet" href="css/live.css?v=3">
+  <link rel="stylesheet" href="css/live.css?v=4">
   <!-- MQTT im Browser (über WebSocket), Version fest -->
   <script src="https://cdn.jsdelivr.net/npm/mqtt@5.16.0/dist/mqtt.min.js"></script>
 </head>
@@ -17,6 +17,9 @@
   </header>
 
   <main class="wrap">
+    <!-- Alarm oder Ausfall: nicht schweigen, sondern oben melden -->
+    <p class="banner" id="banner" role="alert" hidden></p>
+
     <!-- Aktueller Wert -->
     <section class="hero" id="hero" data-zone="none" aria-labelledby="hero-label">
       <p class="eyebrow" id="hero-label">Aktueller Wert</p>
@@ -28,6 +31,20 @@
         <i class="marker" id="marker"></i>
         <div class="ticks"><span>0</span><span style="left:22.5%">4,5</span><span style="left:35.5%">7,1</span><span style="left:100%">20</span></div>
       </div>
+    </section>
+
+    <!-- Meldungen vom Pi: Extra 1 (Alarm mit Entwarnungsschwelle) und Extra 2 (Ausfall) -->
+    <section class="card alerts" aria-labelledby="alerts-title">
+      <header class="card-head">
+        <h2 id="alerts-title">Meldungen</h2>
+        <span class="task">Extra 1 + 2</span>
+      </header>
+      <div class="states">
+        <p class="state" id="st-alarm" data-level="none"><i class="dot"></i><span class="k">Grenzwerte</span><span class="v">noch keine Meldung</span></p>
+        <p class="state" id="st-data" data-level="none"><i class="dot"></i><span class="k">Datenfluss</span><span class="v">warte auf Daten</span></p>
+      </div>
+      <ol class="events" id="events"><li class="empty">Noch keine Meldungen</li></ol>
+      <p class="hint">Alarm ab 7,1 mm/s, Entwarnung erst unter 6,5. Warnung ab 4,5, Entwarnung erst unter 4,0. Ausfall nach 10 s ohne Messwert. Der Pi schickt jede Meldung genau einmal per MQTT.</p>
     </section>
 
     <!-- Die drei Wege, auf denen die Daten ankommen -->
@@ -89,6 +106,6 @@
     </details>
   </main>
 
-  <script src="js/live.js?v=3"></script>
+  <script src="js/live.js?v=4"></script>
 </body>
 </html>

@@ -57,531 +57,6 @@
     "sessionExpiry": ""
   },
   {
-    "id": "p101comment0001",
-    "type": "comment",
-    "name": "Aufgabe 1 · OPC UA: Vibration von P-101 abonnieren",
-    "info": "Server: opc.tcp://milo.digitalpetri.com:62541/milo (anonym, ohne Verschlüsselung)\nNodeId: ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration\nDatentyp: Double, Einheit mm/s, Bereich 0 bis 20",
-    "x": 240,
-    "y": 40,
-    "wires": [],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101inject00001",
-    "type": "inject",
-    "name": "Start",
-    "props": [
-      {
-        "p": "payload"
-      }
-    ],
-    "repeat": "",
-    "crontab": "",
-    "once": true,
-    "onceDelay": "3",
-    "topic": "",
-    "payload": "",
-    "payloadType": "str",
-    "x": 83,
-    "y": 100,
-    "wires": [
-      [
-        "p101opcitem0001"
-      ]
-    ],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101opcitem0001",
-    "type": "OpcUa-Item",
-    "item": "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
-    "datatype": "Double",
-    "value": "",
-    "name": "P-101 Vibration",
-    "x": 277,
-    "y": 100,
-    "wires": [
-      [
-        "p101opcclient01"
-      ]
-    ],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101opcclient01",
-    "type": "OpcUa-Client",
-    "endpoint": "p101opcuaep0001",
-    "action": "subscribe",
-    "deadbandtype": "a",
-    "deadbandvalue": 1,
-    "time": 1,
-    "timeUnit": "s",
-    "certificate": "n",
-    "localfile": "",
-    "localkeyfile": "",
-    "securitymode": "None",
-    "securitypolicy": "None",
-    "useTransport": false,
-    "maxChunkCount": 1,
-    "maxMessageSize": 8192,
-    "receiveBufferSize": 8192,
-    "sendBufferSize": 8192,
-    "setstatusandtime": false,
-    "keepsessionalive": false,
-    "name": "Milo abonnieren (1 s)",
-    "applicationName": "",
-    "applicationUri": "",
-    "x": 530,
-    "y": 100,
-    "wires": [
-      [
-        "p101debugopc001",
-        "p101aufbereit01"
-      ],
-      [],
-      []
-    ],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101debugopc001",
-    "type": "debug",
-    "name": "Vibration (Debug)",
-    "active": true,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": false,
-    "complete": "true",
-    "targetType": "full",
-    "statusVal": "",
-    "statusType": "auto",
-    "x": 789,
-    "y": 80,
-    "wires": [],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101aufbereit01",
-    "type": "function",
-    "name": "Messwert aufbereiten",
-    "func": "// Aus dem OPC-UA-Wert ein einheitliches JSON-Objekt machen.\n// Dieses Objekt geht an WebSocket, MQTT und Datenbank.\n\n// Beim Start eines Abonnements meldet der OPC-UA-Client einmal seine\n// Abonnement-Nummer (topic \"subscriptionId\"). Das ist kein Messwert.\nif (msg.topic === \"subscriptionId\") return null;\n\nconst value = Number(msg.payload);\nif (!Number.isFinite(value)) {\n    node.warn(\"Kein Zahlenwert erhalten: \" + msg.payload);\n    return null;\n}\nconst zeit = msg.sourceTimestamp ? new Date(msg.sourceTimestamp) : new Date();\n\nmsg.payload = {\n    source: \"P-101 Vibration\",\n    nodeId: msg.topic,\n    value: Math.round(value * 1000) / 1000,\n    unit: \"mm/s\",\n    timestamp: zeit.toISOString(),\n    // Alarmgrenzen laut OPC-UA-Server (VibrationAlarm: HighLimit / HighHighLimit)\n    limits: { high: 4.5, highHigh: 7.1 }\n};\nnode.status({ fill: \"green\", shape: \"dot\", text: msg.payload.value + \" mm/s\" });\nreturn msg;\n",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 801,
-    "y": 140,
-    "wires": [
-      [
-        "p101linkout0001"
-      ]
-    ],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101comment0002",
-    "type": "comment",
-    "name": "Aufgabe 2 · WebSocket",
-    "info": "Webapp verbindet sich mit ws://<pi>:1880/ws/p101\nÜber den localhost.run-Tunnel: wss://<tunnel>.lhr.life/ws/p101",
-    "x": 132,
-    "y": 220,
-    "wires": [],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101wsout000001",
-    "type": "websocket out",
-    "name": "WebSocket /ws/p101",
-    "server": "p101wslistener1",
-    "client": "",
-    "x": 211,
-    "y": 260,
-    "wires": [],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101comment0003",
-    "type": "comment",
-    "name": "Aufgabe 3 + 4 · MQTT (HiveMQ)",
-    "info": "Broker: broker.hivemq.com:1883\nTopic: /bbk-lf7/18/power-house/vibration\nIm Browser: wss://broker.hivemq.com:8884/mqtt",
-    "x": 162,
-    "y": 320,
-    "wires": [],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101mqttout0001",
-    "type": "mqtt out",
-    "name": "An HiveMQ senden",
-    "topic": "/bbk-lf7/18/power-house/vibration",
-    "qos": "0",
-    "retain": "false",
-    "respTopic": "",
-    "contentType": "",
-    "userProps": "",
-    "correl": "",
-    "expiry": "",
-    "broker": "p101mqttbroker1",
-    "x": 204,
-    "y": 360,
-    "wires": [],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101mqttin00001",
-    "type": "mqtt in",
-    "name": "Kontrolle: Topic mitlesen",
-    "topic": "/bbk-lf7/18/power-house/vibration",
-    "qos": "0",
-    "datatype": "json",
-    "broker": "p101mqttbroker1",
-    "nl": false,
-    "rap": true,
-    "rh": 0,
-    "inputs": 0,
-    "x": 157,
-    "y": 400,
-    "wires": [
-      [
-        "p101debugmqtt01"
-      ]
-    ],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101debugmqtt01",
-    "type": "debug",
-    "name": "MQTT (Debug)",
-    "active": false,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": false,
-    "complete": "payload",
-    "targetType": "msg",
-    "statusVal": "",
-    "statusType": "auto",
-    "x": 414,
-    "y": 400,
-    "wires": [],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101comment0005",
-    "type": "comment",
-    "name": "Aufgabe 5 + 7 · SQLite-Datenbank und REST-Endpunkte",
-    "info": "Datenbank: ~/.node-red/p101.db\nRelation: vibration(id, ts, value), Primärschlüssel id, Index auf ts\nWerte älter als 24 h werden gelöscht\n\nGET /api/p101/vibration?minutes=5      Messwerte der letzten Minuten (Aufgabe 7)\nGET /api/p101/vibration/avg?minutes=5  Durchschnitt der letzten Minuten (Aufgabe 5)",
-    "x": 243,
-    "y": 480,
-    "wires": [],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101dbinsert001",
-    "type": "function",
-    "name": "In SQLite speichern",
-    "func": "// Jeden Messwert in die Tabelle \"vibration\" schreiben\nconst db = flow.get(\"p101db\");\nif (!db) {\n    node.error(\"Datenbank ist nicht geöffnet\", msg);\n    return null;\n}\nconst ts = Date.parse(msg.payload.timestamp) || Date.now();\ndb.prepare(\"INSERT INTO vibration (ts, value) VALUES (?, ?)\").run(ts, msg.payload.value);\n\n// Alle 10 Minuten Werte löschen, die älter als 24 Stunden sind (schont die SD-Karte)\nlet zaehler = (context.get(\"zaehler\") || 0) + 1;\nif (zaehler >= 600) {\n    db.prepare(\"DELETE FROM vibration WHERE ts < ?\").run(Date.now() - 24 * 60 * 60 * 1000);\n    zaehler = 0;\n}\ncontext.set(\"zaehler\", zaehler);\n\nconst anzahl = db.prepare(\"SELECT COUNT(*) AS n FROM vibration\").get().n;\nnode.status({ fill: \"green\", shape: \"dot\", text: anzahl + \" Werte gespeichert\" });\nreturn null;\n",
-    "outputs": 0,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "// SQLite ist in Node.js 22 eingebaut (node:sqlite), es muss nichts kompiliert werden.\n// Node-RED erkennt \"node:sqlite\" im Setup-Tab nicht als eingebautes Modul,\n// darum wird es über createRequire aus dem eingebauten Modul \"module\" geladen.\nconst requireBuiltin = moduleLib.createRequire(path.join(os.homedir(), \"/\"));\nconst { DatabaseSync } = requireBuiltin(\"node:sqlite\");\n\n// Datenbankdatei: ~/.node-red/p101.db (oder Umgebungsvariable P101_DB)\nconst datei = env.get(\"P101_DB\") || path.join(os.homedir(), \".node-red\", \"p101.db\");\nfs.mkdirSync(path.dirname(datei), { recursive: true });\n\nconst db = new DatabaseSync(datei);\ndb.exec(\"PRAGMA journal_mode = WAL;\");\n\n// Die erste Version der Tabelle hatte keine id-Spalte. Einmalig umbauen und die Werte übernehmen.\nconst spalten = db.prepare(\"PRAGMA table_info(vibration)\").all().map(s => s.name);\nif (spalten.length > 0 && !spalten.includes(\"id\")) {\n    db.exec(`\n        BEGIN;\n        ALTER TABLE vibration RENAME TO vibration_alt;\n        CREATE TABLE vibration (\n            id    INTEGER PRIMARY KEY,\n            ts    INTEGER NOT NULL,\n            value REAL    NOT NULL\n        );\n        INSERT INTO vibration (id, ts, value) SELECT rowid, ts, value FROM vibration_alt ORDER BY rowid;\n        DROP TABLE vibration_alt;\n        COMMIT;\n    `);\n    node.warn(\"Tabelle vibration auf Primärschlüssel id umgestellt\");\n}\n\n// Relation: vibration(id, ts, value)\ndb.exec(`\n    CREATE TABLE IF NOT EXISTS vibration (\n        id    INTEGER PRIMARY KEY,   -- fortlaufende Nummer, Primärschlüssel\n        ts    INTEGER NOT NULL,      -- Zeitpunkt der Messung in ms seit 1970 (UTC)\n        value REAL    NOT NULL       -- Vibration in mm/s\n    );\n    CREATE INDEX IF NOT EXISTS idx_vibration_ts ON vibration (ts);\n`);\n\n// Die Verbindung im Flow-Kontext ablegen, damit die REST-Endpunkte sie mitbenutzen\nflow.set(\"p101db\", db);\nnode.status({ fill: \"grey\", shape: \"ring\", text: \"bereit: \" + path.basename(datei) });\n",
-    "finalize": "// Beim Neu-Deployen oder Stoppen die Datenbank sauber schließen\nconst db = flow.get(\"p101db\");\nif (db) {\n    db.close();\n    flow.set(\"p101db\", undefined);\n}\n",
-    "libs": [
-      {
-        "var": "moduleLib",
-        "module": "module"
-      },
-      {
-        "var": "os",
-        "module": "os"
-      },
-      {
-        "var": "path",
-        "module": "path"
-      },
-      {
-        "var": "fs",
-        "module": "fs"
-      }
-    ],
-    "x": 215,
-    "y": 520,
-    "wires": [],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101httpin00001",
-    "type": "http in",
-    "name": "",
-    "url": "/api/p101/vibration",
-    "method": "get",
-    "upload": false,
-    "swaggerDoc": "",
-    "x": 157,
-    "y": 560,
-    "wires": [
-      [
-        "p101restquery01"
-      ]
-    ],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101restquery01",
-    "type": "function",
-    "name": "Letzte Minuten abfragen",
-    "func": "// GET /api/p101/vibration?minutes=5\n// Liefert die Messwerte der letzten Minuten (Standard 5, höchstens 60) als JSON.\nmsg.headers = {\n    \"Content-Type\": \"application/json\",\n    \"Access-Control-Allow-Origin\": \"*\",   // Webapp auf GitHub Pages darf abfragen\n    \"Cache-Control\": \"no-store\"\n};\n\nconst db = flow.get(\"p101db\");\nif (!db) {\n    msg.statusCode = 503;\n    msg.payload = { error: \"Datenbank nicht bereit\" };\n    return msg;\n}\n\nlet minutes = parseInt(msg.req.query.minutes, 10);\nif (!Number.isFinite(minutes)) minutes = 5;\nminutes = Math.min(Math.max(minutes, 1), 60);\n\nconst seit = Date.now() - minutes * 60 * 1000;\nconst rows = db.prepare(\"SELECT ts, value FROM vibration WHERE ts >= ? ORDER BY ts\").all(seit);\n\nmsg.statusCode = 200;\nmsg.payload = {\n    source: \"P-101 Vibration\",\n    unit: \"mm/s\",\n    minutes: minutes,\n    count: rows.length,\n    data: rows.map(r => ({ timestamp: new Date(r.ts).toISOString(), value: r.value }))\n};\nreturn msg;\n",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 455,
-    "y": 560,
-    "wires": [
-      [
-        "p101httpres0001"
-      ]
-    ],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101httpres0001",
-    "type": "http response",
-    "name": "JSON-Antwort",
-    "statusCode": "",
-    "headers": {},
-    "x": 704,
-    "y": 560,
-    "wires": [],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101comment0006",
-    "type": "comment",
-    "name": "Aufgabe 5 · Durchschnitt der letzten 5 Minuten",
-    "info": "SQL:\nSELECT AVG(value) AS avg, MIN(value) AS min, MAX(value) AS max, COUNT(*) AS n\nFROM vibration\nWHERE ts >= ?   -- jetzt minus 5 Minuten in ms",
-    "x": 225,
-    "y": 640,
-    "wires": [],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101httpinavg01",
-    "type": "http in",
-    "name": "",
-    "url": "/api/p101/vibration/avg",
-    "method": "get",
-    "upload": false,
-    "swaggerDoc": "",
-    "x": 172,
-    "y": 680,
-    "wires": [
-      [
-        "p101avgfunc0001"
-      ]
-    ],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101avginject01",
-    "type": "inject",
-    "name": "alle 10 s",
-    "props": [
-      {
-        "p": "payload"
-      }
-    ],
-    "repeat": "10",
-    "crontab": "",
-    "once": true,
-    "onceDelay": "5",
-    "topic": "",
-    "payload": "",
-    "payloadType": "date",
-    "x": 105,
-    "y": 720,
-    "wires": [
-      [
-        "p101avgfunc0001"
-      ]
-    ],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101avgfunc0001",
-    "type": "function",
-    "name": "Durchschnitt berechnen",
-    "func": "// Durchschnitt der letzten Minuten (Standard 5, höchstens 60).\n// Kommt die Nachricht vom REST-Endpunkt (msg.req), geht die Antwort an Ausgang 1.\n// Kommt sie vom Zeitgeber, geht ein Text an das Dashboard (Ausgang 2).\nconst db = flow.get(\"p101db\");\nconst vomRest = !!msg.req;\n\nif (vomRest) {\n    msg.headers = {\n        \"Content-Type\": \"application/json\",\n        \"Access-Control-Allow-Origin\": \"*\",   // Webapp auf GitHub Pages darf abfragen\n        \"Cache-Control\": \"no-store\"\n    };\n}\nif (!db) {\n    if (!vomRest) return null;\n    msg.statusCode = 503;\n    msg.payload = { error: \"Datenbank nicht bereit\" };\n    return [msg, null];\n}\n\nlet minutes = vomRest ? parseInt(msg.req.query.minutes, 10) : 5;\nif (!Number.isFinite(minutes)) minutes = 5;\nminutes = Math.min(Math.max(minutes, 1), 60);\nconst seit = Date.now() - minutes * 60 * 1000;\n\nconst r = db.prepare(`\n    SELECT AVG(value) AS avg, MIN(value) AS min, MAX(value) AS max, COUNT(*) AS n\n    FROM vibration\n    WHERE ts >= ?\n`).get(seit);\n\nconst runden = v => (v === null || v === undefined) ? null : Math.round(v * 1000) / 1000;\nconst ergebnis = {\n    source: \"P-101 Vibration\",\n    unit: \"mm/s\",\n    minutes: minutes,\n    count: r.n,\n    average: runden(r.avg),\n    min: runden(r.min),\n    max: runden(r.max)\n};\n\nif (vomRest) {\n    msg.statusCode = 200;\n    msg.payload = ergebnis;\n    return [msg, null];\n}\nconst text = ergebnis.count\n    ? ergebnis.average.toFixed(2).replace(\".\", \",\") + \" mm/s (\" + ergebnis.count + \" Werte)\"\n    : \"noch keine Werte\";\nnode.status({ text: \"Ø \" + text });\nreturn [null, { payload: text }];\n",
-    "outputs": 2,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 480,
-    "y": 700,
-    "wires": [
-      [
-        "p101httpresavg1"
-      ],
-      [
-        "p101uitextavg01"
-      ]
-    ],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101httpresavg1",
-    "type": "http response",
-    "name": "JSON-Antwort",
-    "statusCode": "",
-    "headers": {},
-    "x": 725,
-    "y": 680,
-    "wires": [],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101comment0031",
-    "type": "comment",
-    "name": "Aufgabe 3.1 · Andere Gruppen mithören",
-    "info": "Abonniert /bbk-lf7/+/power-house/vibration (wie verlangt, mit Schrägstrich am Anfang)\nund zur Kontrolle bbk-lf7/+/power-house/vibration (falls eine Gruppe den Schrägstrich vergessen hat).\nAuswertung: GET /api/bbk-lf7/gruppen",
-    "x": 191,
-    "y": 800,
-    "wires": [],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101mqttinall01",
-    "type": "mqtt in",
-    "name": "Alle Gruppen",
-    "topic": "/bbk-lf7/+/power-house/vibration",
-    "qos": "0",
-    "datatype": "utf8",
-    "broker": "p101mqttbroker1",
-    "nl": false,
-    "rap": true,
-    "rh": 0,
-    "inputs": 0,
-    "x": 109,
-    "y": 840,
-    "wires": [
-      [
-        "p101gruppen0001"
-      ]
-    ],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101mqttinall02",
-    "type": "mqtt in",
-    "name": "Alle Gruppen (ohne /)",
-    "topic": "bbk-lf7/+/power-house/vibration",
-    "qos": "0",
-    "datatype": "utf8",
-    "broker": "p101mqttbroker1",
-    "nl": false,
-    "rap": true,
-    "rh": 0,
-    "inputs": 0,
-    "x": 142,
-    "y": 880,
-    "wires": [
-      [
-        "p101gruppen0001"
-      ]
-    ],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101gruppen0001",
-    "type": "function",
-    "name": "Gruppen vergleichen",
-    "func": "// Wertet jede Nachricht unter /bbk-lf7/<kiste>/power-house/vibration aus,\n// auch die eigene. Je Topic wird festgehalten, wie oft, in welchem Format und mit welchen Werten gesendet wird.\nconst teile = msg.topic.split(\"/\");\nconst stelle = teile.indexOf(\"bbk-lf7\");\nconst kiste = stelle >= 0 ? teile[stelle + 1] : \"?\";\nconst roh = Buffer.isBuffer(msg.payload) ? msg.payload.toString(\"utf8\") : String(msg.payload);\n\nlet format = \"Text\", wert = null, felder = [];\ntry {\n    const obj = JSON.parse(roh);\n    if (typeof obj === \"number\") {\n        format = \"Zahl\";\n        wert = obj;\n    } else if (obj && typeof obj === \"object\") {\n        format = Array.isArray(obj) ? \"JSON-Liste\" : \"JSON-Objekt\";\n        felder = Array.isArray(obj) ? [] : Object.keys(obj).sort();\n        // Wert direkt (value, vibration, …) oder verschachtelt wie im rohen OPC-UA-DataValue (value.value)\n        const innen = obj.value && typeof obj.value === \"object\" ? obj.value.value : undefined;\n        const kandidat = [obj.value, obj.vibration, obj.wert, obj.payload, innen].find(v => typeof v === \"number\");\n        if (kandidat !== undefined) wert = kandidat;\n        if (innen !== undefined) format = \"JSON-Objekt (OPC-UA-DataValue)\";\n    } else {\n        format = \"JSON (\" + typeof obj + \")\";\n    }\n} catch (e) {\n    if (/^\\s*-?\\d+([.,]\\d+)?\\s*$/.test(roh)) {\n        format = \"Zahl als Text\";\n        wert = parseFloat(roh.replace(\",\", \".\"));\n    }\n}\n\nconst EIGENE_KISTE = \"18\";\nconst jetzt = Date.now();\nconst alle = flow.get(\"gruppen\") || {};\nconst g = alle[msg.topic] || {\n    topic: msg.topic, kiste: kiste, eigene: kiste === EIGENE_KISTE,\n    anzahl: 0, erste: jetzt, bytes: 0, retained: 0, formate: {}, felder: [],\n    min: null, max: null, summe: 0, werteAnzahl: 0\n};\ng.anzahl++;\ng.letzte = jetzt;\ng.bytes += Buffer.byteLength(roh);\nif (msg.retain) g.retained++;\ng.formate[format] = (g.formate[format] || 0) + 1;\ng.felder = [...new Set(g.felder.concat(felder))].sort();\nif (wert !== null && Number.isFinite(wert)) {\n    g.min = g.min === null ? wert : Math.min(g.min, wert);\n    g.max = g.max === null ? wert : Math.max(g.max, wert);\n    g.summe += wert;\n    g.werteAnzahl++;\n    g.letzterWert = wert;\n}\ng.beispiel = roh.slice(0, 300);\nalle[msg.topic] = g;\nflow.set(\"gruppen\", alle);\n\nconst fremde = Object.values(alle).filter(x => !x.eigene).length;\nnode.status({ fill: fremde ? \"green\" : \"grey\", shape: \"dot\", text: fremde + \" fremde Gruppen gehört\" });\nmsg.kiste = kiste;\nmsg.format = format;\nreturn msg;\n",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 409,
-    "y": 860,
-    "wires": [
-      [
-        "p101debuggrp001"
-      ]
-    ],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101debuggrp001",
-    "type": "debug",
-    "name": "Fremde Topics (Debug)",
-    "active": false,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": false,
-    "complete": "true",
-    "targetType": "full",
-    "statusVal": "",
-    "statusType": "auto",
-    "x": 676,
-    "y": 860,
-    "wires": [],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101httpingrp01",
-    "type": "http in",
-    "name": "",
-    "url": "/api/bbk-lf7/gruppen",
-    "method": "get",
-    "upload": false,
-    "swaggerDoc": "",
-    "x": 161,
-    "y": 920,
-    "wires": [
-      [
-        "p101grpausgab01"
-      ]
-    ],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101grpausgab01",
-    "type": "function",
-    "name": "Vergleich ausgeben",
-    "func": "// GET /api/bbk-lf7/gruppen: Vergleich aller gehörten Topics als JSON\nmsg.headers = {\n    \"Content-Type\": \"application/json\",\n    \"Access-Control-Allow-Origin\": \"*\",\n    \"Cache-Control\": \"no-store\"\n};\nconst jetzt = Date.now();\nconst runden = v => (v === null || v === undefined) ? null : Math.round(v * 1000) / 1000;\nconst alle = Object.values(flow.get(\"gruppen\") || {});\nmsg.payload = {\n    seit: alle.length ? new Date(Math.min(...alle.map(g => g.erste))).toISOString() : null,\n    gruppen: alle.sort((a, b) => a.topic.localeCompare(b.topic, \"de\", { numeric: true })).map(g => {\n        const sekunden = Math.max((g.letzte - g.erste) / 1000, 1);\n        return {\n            topic: g.topic,\n            kiste: g.kiste,\n            eigene: g.eigene,\n            nachrichten: g.anzahl,\n            proMinute: g.anzahl > 1 ? Math.round((g.anzahl - 1) / sekunden * 60 * 10) / 10 : null,\n            zuletztVorSekunden: Math.round((jetzt - g.letzte) / 1000),\n            durchschnittBytes: Math.round(g.bytes / g.anzahl),\n            retained: g.retained,\n            formate: g.formate,\n            felder: g.felder,\n            werte: g.werteAnzahl ? { min: runden(g.min), max: runden(g.max), durchschnitt: runden(g.summe / g.werteAnzahl), letzter: runden(g.letzterWert) } : null,\n            beispiel: g.beispiel\n        };\n    })\n};\nmsg.statusCode = 200;\nreturn msg;\n",
-    "outputs": 1,
-    "timeout": 0,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 443,
-    "y": 920,
-    "wires": [
-      [
-        "p101httpresgrp1"
-      ]
-    ],
-    "z": "p101tab00000001"
-  },
-  {
-    "id": "p101httpresgrp1",
-    "type": "http response",
-    "name": "JSON-Antwort",
-    "statusCode": "",
-    "headers": {},
-    "x": 674,
-    "y": 920,
-    "wires": [],
-    "z": "p101tab00000001"
-  },
-  {
     "id": "p101uibase00001",
     "type": "ui-base",
     "name": "LF7 Dashboard",
@@ -685,18 +160,545 @@
     "groupType": "default"
   },
   {
+    "id": "p101comment0001",
+    "type": "comment",
+    "z": "p101tab00000001",
+    "name": "Aufgabe 1 · OPC UA: Vibration von P-101 abonnieren",
+    "info": "Server: opc.tcp://milo.digitalpetri.com:62541/milo (anonym, ohne Verschlüsselung)\nNodeId: ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration\nDatentyp: Double, Einheit mm/s, Bereich 0 bis 20",
+    "x": 240,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "p101inject00001",
+    "type": "inject",
+    "z": "p101tab00000001",
+    "name": "Start",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "3",
+    "topic": "",
+    "payload": "",
+    "payloadType": "str",
+    "x": 83,
+    "y": 100,
+    "wires": [
+      [
+        "p101opcitem0001"
+      ]
+    ]
+  },
+  {
+    "id": "p101opcitem0001",
+    "type": "OpcUa-Item",
+    "z": "p101tab00000001",
+    "item": "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
+    "datatype": "Double",
+    "value": "",
+    "name": "P-101 Vibration",
+    "x": 277,
+    "y": 100,
+    "wires": [
+      [
+        "p101opcclient01"
+      ]
+    ]
+  },
+  {
+    "id": "p101opcclient01",
+    "type": "OpcUa-Client",
+    "z": "p101tab00000001",
+    "endpoint": "p101opcuaep0001",
+    "action": "subscribe",
+    "deadbandtype": "a",
+    "deadbandvalue": 1,
+    "time": 1,
+    "timeUnit": "s",
+    "certificate": "n",
+    "localfile": "",
+    "localkeyfile": "",
+    "securitymode": "None",
+    "securitypolicy": "None",
+    "useTransport": false,
+    "maxChunkCount": 1,
+    "maxMessageSize": 8192,
+    "receiveBufferSize": 8192,
+    "sendBufferSize": 8192,
+    "setstatusandtime": false,
+    "keepsessionalive": false,
+    "name": "Milo abonnieren (1 s)",
+    "applicationName": "",
+    "applicationUri": "",
+    "x": 530,
+    "y": 100,
+    "wires": [
+      [
+        "p101debugopc001",
+        "p101aufbereit01"
+      ],
+      [],
+      []
+    ]
+  },
+  {
+    "id": "p101debugopc001",
+    "type": "debug",
+    "z": "p101tab00000001",
+    "name": "Vibration (Debug)",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 789,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "p101aufbereit01",
+    "type": "function",
+    "z": "p101tab00000001",
+    "name": "Messwert aufbereiten",
+    "func": "// Aus dem OPC-UA-Wert ein einheitliches JSON-Objekt machen.\n// Dieses Objekt geht an WebSocket, MQTT und Datenbank.\n\n// Beim Start eines Abonnements meldet der OPC-UA-Client einmal seine\n// Abonnement-Nummer (topic \"subscriptionId\"). Das ist kein Messwert.\nif (msg.topic === \"subscriptionId\") return null;\n\n// Test für Extra 2: Während eines simulierten Ausfalls (Inject \"Test: Ausfall 20 s\") Werte verwerfen\nif (Date.now() < (flow.get(\"p101testausfall\") || 0)) {\n    node.status({ fill: \"grey\", shape: \"ring\", text: \"Test: Ausfall simuliert\" });\n    return null;\n}\n\nconst value = Number(msg.payload);\nif (!Number.isFinite(value)) {\n    node.warn(\"Kein Zahlenwert erhalten: \" + msg.payload);\n    return null;\n}\nconst zeit = msg.sourceTimestamp ? new Date(msg.sourceTimestamp) : new Date();\n\nmsg.payload = {\n    source: \"P-101 Vibration\",\n    nodeId: msg.topic,\n    value: Math.round(value * 1000) / 1000,\n    unit: \"mm/s\",\n    timestamp: zeit.toISOString(),\n    // Alarmgrenzen laut OPC-UA-Server (VibrationAlarm: HighLimit / HighHighLimit)\n    limits: { high: 4.5, highHigh: 7.1 }\n};\nnode.status({ fill: \"green\", shape: \"dot\", text: msg.payload.value + \" mm/s\" });\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 801,
+    "y": 140,
+    "wires": [
+      [
+        "p101linkout0001"
+      ]
+    ]
+  },
+  {
+    "id": "p101comment0002",
+    "type": "comment",
+    "z": "p101tab00000001",
+    "name": "Aufgabe 2 · WebSocket",
+    "info": "Webapp verbindet sich mit ws://<pi>:1880/ws/p101\nÜber den localhost.run-Tunnel: wss://<tunnel>.lhr.life/ws/p101",
+    "x": 132,
+    "y": 220,
+    "wires": []
+  },
+  {
+    "id": "p101wsout000001",
+    "type": "websocket out",
+    "z": "p101tab00000001",
+    "name": "WebSocket /ws/p101",
+    "server": "p101wslistener1",
+    "client": "",
+    "x": 211,
+    "y": 260,
+    "wires": []
+  },
+  {
+    "id": "p101comment0003",
+    "type": "comment",
+    "z": "p101tab00000001",
+    "name": "Aufgabe 3 + 4 · MQTT (HiveMQ)",
+    "info": "Broker: broker.hivemq.com:1883\nTopic: /bbk-lf7/18/power-house/vibration\nIm Browser: wss://broker.hivemq.com:8884/mqtt",
+    "x": 162,
+    "y": 320,
+    "wires": []
+  },
+  {
+    "id": "p101mqttout0001",
+    "type": "mqtt out",
+    "z": "p101tab00000001",
+    "name": "An HiveMQ senden",
+    "topic": "/bbk-lf7/18/power-house/vibration",
+    "qos": "0",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "p101mqttbroker1",
+    "x": 204,
+    "y": 360,
+    "wires": []
+  },
+  {
+    "id": "p101mqttin00001",
+    "type": "mqtt in",
+    "z": "p101tab00000001",
+    "name": "Kontrolle: Topic mitlesen",
+    "topic": "/bbk-lf7/18/power-house/vibration",
+    "qos": "0",
+    "datatype": "json",
+    "broker": "p101mqttbroker1",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 150,
+    "y": 420,
+    "wires": [
+      [
+        "p101debugmqtt01"
+      ]
+    ]
+  },
+  {
+    "id": "p101debugmqtt01",
+    "type": "debug",
+    "z": "p101tab00000001",
+    "name": "MQTT (Debug)",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 420,
+    "y": 420,
+    "wires": []
+  },
+  {
+    "id": "p101comment0005",
+    "type": "comment",
+    "z": "p101tab00000001",
+    "name": "Aufgabe 5 + 7 · SQLite-Datenbank und REST-Endpunkte",
+    "info": "Datenbank: ~/.node-red/p101.db\nRelation: vibration(id, ts, value), Primärschlüssel id, Index auf ts\nWerte älter als 24 h werden gelöscht\n\nGET /api/p101/vibration?minutes=5      Messwerte der letzten Minuten (Aufgabe 7)\nGET /api/p101/vibration/avg?minutes=5  Durchschnitt der letzten Minuten (Aufgabe 5)",
+    "x": 243,
+    "y": 480,
+    "wires": []
+  },
+  {
+    "id": "p101dbinsert001",
+    "type": "function",
+    "z": "p101tab00000001",
+    "name": "In SQLite speichern",
+    "func": "// Jeden Messwert in die Tabelle \"vibration\" schreiben\nconst db = flow.get(\"p101db\");\nif (!db) {\n    node.error(\"Datenbank ist nicht geöffnet\", msg);\n    return null;\n}\nconst ts = Date.parse(msg.payload.timestamp) || Date.now();\ndb.prepare(\"INSERT INTO vibration (ts, value) VALUES (?, ?)\").run(ts, msg.payload.value);\n\n// Alle 10 Minuten Werte löschen, die älter als 24 Stunden sind (schont die SD-Karte)\nlet zaehler = (context.get(\"zaehler\") || 0) + 1;\nif (zaehler >= 600) {\n    db.prepare(\"DELETE FROM vibration WHERE ts < ?\").run(Date.now() - 24 * 60 * 60 * 1000);\n    zaehler = 0;\n}\ncontext.set(\"zaehler\", zaehler);\n\nconst anzahl = db.prepare(\"SELECT COUNT(*) AS n FROM vibration\").get().n;\nnode.status({ fill: \"green\", shape: \"dot\", text: anzahl + \" Werte gespeichert\" });\nreturn null;\n",
+    "outputs": 0,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "// SQLite ist in Node.js 22 eingebaut (node:sqlite), es muss nichts kompiliert werden.\n// Node-RED erkennt \"node:sqlite\" im Setup-Tab nicht als eingebautes Modul,\n// darum wird es über createRequire aus dem eingebauten Modul \"module\" geladen.\nconst requireBuiltin = moduleLib.createRequire(path.join(os.homedir(), \"/\"));\nconst { DatabaseSync } = requireBuiltin(\"node:sqlite\");\n\n// Datenbankdatei: ~/.node-red/p101.db (oder Umgebungsvariable P101_DB)\nconst datei = env.get(\"P101_DB\") || path.join(os.homedir(), \".node-red\", \"p101.db\");\nfs.mkdirSync(path.dirname(datei), { recursive: true });\n\nconst db = new DatabaseSync(datei);\ndb.exec(\"PRAGMA journal_mode = WAL;\");\n\n// Die erste Version der Tabelle hatte keine id-Spalte. Einmalig umbauen und die Werte übernehmen.\nconst spalten = db.prepare(\"PRAGMA table_info(vibration)\").all().map(s => s.name);\nif (spalten.length > 0 && !spalten.includes(\"id\")) {\n    db.exec(`\n        BEGIN;\n        ALTER TABLE vibration RENAME TO vibration_alt;\n        CREATE TABLE vibration (\n            id    INTEGER PRIMARY KEY,\n            ts    INTEGER NOT NULL,\n            value REAL    NOT NULL\n        );\n        INSERT INTO vibration (id, ts, value) SELECT rowid, ts, value FROM vibration_alt ORDER BY rowid;\n        DROP TABLE vibration_alt;\n        COMMIT;\n    `);\n    node.warn(\"Tabelle vibration auf Primärschlüssel id umgestellt\");\n}\n\n// Relation: vibration(id, ts, value)\ndb.exec(`\n    CREATE TABLE IF NOT EXISTS vibration (\n        id    INTEGER PRIMARY KEY,   -- fortlaufende Nummer, Primärschlüssel\n        ts    INTEGER NOT NULL,      -- Zeitpunkt der Messung in ms seit 1970 (UTC)\n        value REAL    NOT NULL       -- Vibration in mm/s\n    );\n    CREATE INDEX IF NOT EXISTS idx_vibration_ts ON vibration (ts);\n`);\n\n// Relation: meldung(id, ts, art, ereignis, zustand, wert, text) für Extra 1 und 2\ndb.exec(`\n    CREATE TABLE IF NOT EXISTS meldung (\n        id       INTEGER PRIMARY KEY,\n        ts       INTEGER NOT NULL,   -- Zeitpunkt in ms seit 1970 (UTC)\n        art      TEXT    NOT NULL,   -- \"alarm\" (Extra 1) oder \"ausfall\" (Extra 2)\n        ereignis TEXT    NOT NULL,   -- Alarm, Warnung, Entwarnung, Ausfall, Wieder da\n        zustand  TEXT    NOT NULL,   -- Zustand danach: normal, warnung, alarm, ausfall, ok\n        wert     REAL,               -- Messwert in mm/s (beim Ausfall leer)\n        text     TEXT    NOT NULL\n    );\n    CREATE INDEX IF NOT EXISTS idx_meldung_ts ON meldung (ts);\n`);\n\n// Die Verbindung im Flow-Kontext ablegen, damit die REST-Endpunkte sie mitbenutzen\nflow.set(\"p101db\", db);\nnode.status({ fill: \"grey\", shape: \"ring\", text: \"bereit: \" + path.basename(datei) });\n",
+    "finalize": "// Beim Neu-Deployen oder Stoppen die Datenbank sauber schließen\nconst db = flow.get(\"p101db\");\nif (db) {\n    db.close();\n    flow.set(\"p101db\", undefined);\n}\n",
+    "libs": [
+      {
+        "var": "moduleLib",
+        "module": "module"
+      },
+      {
+        "var": "os",
+        "module": "os"
+      },
+      {
+        "var": "path",
+        "module": "path"
+      },
+      {
+        "var": "fs",
+        "module": "fs"
+      }
+    ],
+    "x": 215,
+    "y": 520,
+    "wires": []
+  },
+  {
+    "id": "p101httpin00001",
+    "type": "http in",
+    "z": "p101tab00000001",
+    "name": "",
+    "url": "/api/p101/vibration",
+    "method": "get",
+    "upload": false,
+    "skipBodyParsing": false,
+    "swaggerDoc": "",
+    "x": 160,
+    "y": 580,
+    "wires": [
+      [
+        "p101restquery01"
+      ]
+    ]
+  },
+  {
+    "id": "p101restquery01",
+    "type": "function",
+    "z": "p101tab00000001",
+    "name": "Letzte Minuten abfragen",
+    "func": "// GET /api/p101/vibration?minutes=5\n// Liefert die Messwerte der letzten Minuten (Standard 5, höchstens 60) als JSON.\nmsg.headers = {\n    \"Content-Type\": \"application/json\",\n    \"Access-Control-Allow-Origin\": \"*\",   // Webapp auf GitHub Pages darf abfragen\n    \"Cache-Control\": \"no-store\"\n};\n\nconst db = flow.get(\"p101db\");\nif (!db) {\n    msg.statusCode = 503;\n    msg.payload = { error: \"Datenbank nicht bereit\" };\n    return msg;\n}\n\nlet minutes = parseInt(msg.req.query.minutes, 10);\nif (!Number.isFinite(minutes)) minutes = 5;\nminutes = Math.min(Math.max(minutes, 1), 60);\n\nconst seit = Date.now() - minutes * 60 * 1000;\nconst rows = db.prepare(\"SELECT ts, value FROM vibration WHERE ts >= ? ORDER BY ts\").all(seit);\n\nmsg.statusCode = 200;\nmsg.payload = {\n    source: \"P-101 Vibration\",\n    unit: \"mm/s\",\n    minutes: minutes,\n    count: rows.length,\n    data: rows.map(r => ({ timestamp: new Date(r.ts).toISOString(), value: r.value }))\n};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 450,
+    "y": 580,
+    "wires": [
+      [
+        "p101httpres0001"
+      ]
+    ]
+  },
+  {
+    "id": "p101httpres0001",
+    "type": "http response",
+    "z": "p101tab00000001",
+    "name": "JSON-Antwort",
+    "statusCode": "",
+    "headers": {},
+    "x": 700,
+    "y": 580,
+    "wires": []
+  },
+  {
+    "id": "p101comment0006",
+    "type": "comment",
+    "z": "p101tab00000001",
+    "name": "Aufgabe 5 · Durchschnitt der letzten 5 Minuten",
+    "info": "SQL:\nSELECT AVG(value) AS avg, MIN(value) AS min, MAX(value) AS max, COUNT(*) AS n\nFROM vibration\nWHERE ts >= ?   -- jetzt minus 5 Minuten in ms",
+    "x": 225,
+    "y": 640,
+    "wires": []
+  },
+  {
+    "id": "p101httpinavg01",
+    "type": "http in",
+    "z": "p101tab00000001",
+    "name": "",
+    "url": "/api/p101/vibration/avg",
+    "method": "get",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 172,
+    "y": 680,
+    "wires": [
+      [
+        "p101avgfunc0001"
+      ]
+    ]
+  },
+  {
+    "id": "p101avginject01",
+    "type": "inject",
+    "z": "p101tab00000001",
+    "name": "alle 10 s",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "10",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "5",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 105,
+    "y": 720,
+    "wires": [
+      [
+        "p101avgfunc0001"
+      ]
+    ]
+  },
+  {
+    "id": "p101avgfunc0001",
+    "type": "function",
+    "z": "p101tab00000001",
+    "name": "Durchschnitt berechnen",
+    "func": "// Durchschnitt der letzten Minuten (Standard 5, höchstens 60).\n// Kommt die Nachricht vom REST-Endpunkt (msg.req), geht die Antwort an Ausgang 1.\n// Kommt sie vom Zeitgeber, geht ein Text an das Dashboard (Ausgang 2).\nconst db = flow.get(\"p101db\");\nconst vomRest = !!msg.req;\n\nif (vomRest) {\n    msg.headers = {\n        \"Content-Type\": \"application/json\",\n        \"Access-Control-Allow-Origin\": \"*\",   // Webapp auf GitHub Pages darf abfragen\n        \"Cache-Control\": \"no-store\"\n    };\n}\nif (!db) {\n    if (!vomRest) return null;\n    msg.statusCode = 503;\n    msg.payload = { error: \"Datenbank nicht bereit\" };\n    return [msg, null];\n}\n\nlet minutes = vomRest ? parseInt(msg.req.query.minutes, 10) : 5;\nif (!Number.isFinite(minutes)) minutes = 5;\nminutes = Math.min(Math.max(minutes, 1), 60);\nconst seit = Date.now() - minutes * 60 * 1000;\n\nconst r = db.prepare(`\n    SELECT AVG(value) AS avg, MIN(value) AS min, MAX(value) AS max, COUNT(*) AS n\n    FROM vibration\n    WHERE ts >= ?\n`).get(seit);\n\nconst runden = v => (v === null || v === undefined) ? null : Math.round(v * 1000) / 1000;\nconst ergebnis = {\n    source: \"P-101 Vibration\",\n    unit: \"mm/s\",\n    minutes: minutes,\n    count: r.n,\n    average: runden(r.avg),\n    min: runden(r.min),\n    max: runden(r.max)\n};\n\nif (vomRest) {\n    msg.statusCode = 200;\n    msg.payload = ergebnis;\n    return [msg, null];\n}\nconst text = ergebnis.count\n    ? ergebnis.average.toFixed(2).replace(\".\", \",\") + \" mm/s (\" + ergebnis.count + \" Werte)\"\n    : \"noch keine Werte\";\nnode.status({ text: \"Ø \" + text });\nreturn [null, { payload: text }];\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 480,
+    "y": 700,
+    "wires": [
+      [
+        "p101httpresavg1"
+      ],
+      [
+        "p101uitextavg01"
+      ]
+    ]
+  },
+  {
+    "id": "p101httpresavg1",
+    "type": "http response",
+    "z": "p101tab00000001",
+    "name": "JSON-Antwort",
+    "statusCode": "",
+    "headers": {},
+    "x": 725,
+    "y": 680,
+    "wires": []
+  },
+  {
+    "id": "p101comment0031",
+    "type": "comment",
+    "z": "p101tab00000001",
+    "name": "Aufgabe 3.1 · Andere Gruppen mithören",
+    "info": "Abonniert /bbk-lf7/+/power-house/vibration (wie verlangt, mit Schrägstrich am Anfang)\nund zur Kontrolle bbk-lf7/+/power-house/vibration (falls eine Gruppe den Schrägstrich vergessen hat).\nAuswertung: GET /api/bbk-lf7/gruppen",
+    "x": 191,
+    "y": 800,
+    "wires": []
+  },
+  {
+    "id": "p101mqttinall01",
+    "type": "mqtt in",
+    "z": "p101tab00000001",
+    "name": "Alle Gruppen",
+    "topic": "/bbk-lf7/+/power-house/vibration",
+    "qos": "0",
+    "datatype": "utf8",
+    "broker": "p101mqttbroker1",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 109,
+    "y": 840,
+    "wires": [
+      [
+        "p101gruppen0001"
+      ]
+    ]
+  },
+  {
+    "id": "p101mqttinall02",
+    "type": "mqtt in",
+    "z": "p101tab00000001",
+    "name": "Alle Gruppen (ohne /)",
+    "topic": "bbk-lf7/+/power-house/vibration",
+    "qos": "0",
+    "datatype": "utf8",
+    "broker": "p101mqttbroker1",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 140,
+    "y": 900,
+    "wires": [
+      [
+        "p101gruppen0001"
+      ]
+    ]
+  },
+  {
+    "id": "p101gruppen0001",
+    "type": "function",
+    "z": "p101tab00000001",
+    "name": "Gruppen vergleichen",
+    "func": "// Wertet jede Nachricht unter /bbk-lf7/<kiste>/power-house/vibration aus,\n// auch die eigene. Je Topic wird festgehalten, wie oft, in welchem Format und mit welchen Werten gesendet wird.\nconst teile = msg.topic.split(\"/\");\nconst stelle = teile.indexOf(\"bbk-lf7\");\nconst kiste = stelle >= 0 ? teile[stelle + 1] : \"?\";\nconst roh = Buffer.isBuffer(msg.payload) ? msg.payload.toString(\"utf8\") : String(msg.payload);\n\nlet format = \"Text\", wert = null, felder = [];\ntry {\n    const obj = JSON.parse(roh);\n    if (typeof obj === \"number\") {\n        format = \"Zahl\";\n        wert = obj;\n    } else if (obj && typeof obj === \"object\") {\n        format = Array.isArray(obj) ? \"JSON-Liste\" : \"JSON-Objekt\";\n        felder = Array.isArray(obj) ? [] : Object.keys(obj).sort();\n        // Wert direkt (value, vibration, …) oder verschachtelt wie im rohen OPC-UA-DataValue (value.value)\n        const innen = obj.value && typeof obj.value === \"object\" ? obj.value.value : undefined;\n        const kandidat = [obj.value, obj.vibration, obj.wert, obj.payload, innen].find(v => typeof v === \"number\");\n        if (kandidat !== undefined) wert = kandidat;\n        if (innen !== undefined) format = \"JSON-Objekt (OPC-UA-DataValue)\";\n    } else {\n        format = \"JSON (\" + typeof obj + \")\";\n    }\n} catch (e) {\n    if (/^\\s*-?\\d+([.,]\\d+)?\\s*$/.test(roh)) {\n        format = \"Zahl als Text\";\n        wert = parseFloat(roh.replace(\",\", \".\"));\n    }\n}\n\nconst EIGENE_KISTE = \"18\";\nconst jetzt = Date.now();\nconst alle = flow.get(\"gruppen\") || {};\nconst g = alle[msg.topic] || {\n    topic: msg.topic, kiste: kiste, eigene: kiste === EIGENE_KISTE,\n    anzahl: 0, erste: jetzt, bytes: 0, retained: 0, formate: {}, felder: [],\n    min: null, max: null, summe: 0, werteAnzahl: 0\n};\ng.anzahl++;\ng.letzte = jetzt;\ng.bytes += Buffer.byteLength(roh);\nif (msg.retain) g.retained++;\ng.formate[format] = (g.formate[format] || 0) + 1;\ng.felder = [...new Set(g.felder.concat(felder))].sort();\nif (wert !== null && Number.isFinite(wert)) {\n    g.min = g.min === null ? wert : Math.min(g.min, wert);\n    g.max = g.max === null ? wert : Math.max(g.max, wert);\n    g.summe += wert;\n    g.werteAnzahl++;\n    g.letzterWert = wert;\n}\ng.beispiel = roh.slice(0, 300);\nalle[msg.topic] = g;\nflow.set(\"gruppen\", alle);\n\nconst fremde = Object.values(alle).filter(x => !x.eigene).length;\nnode.status({ fill: fremde ? \"green\" : \"grey\", shape: \"dot\", text: fremde + \" fremde Gruppen gehört\" });\nmsg.kiste = kiste;\nmsg.format = format;\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 400,
+    "y": 880,
+    "wires": [
+      [
+        "p101debuggrp001"
+      ]
+    ]
+  },
+  {
+    "id": "p101debuggrp001",
+    "type": "debug",
+    "z": "p101tab00000001",
+    "name": "Fremde Topics (Debug)",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 670,
+    "y": 880,
+    "wires": []
+  },
+  {
+    "id": "p101httpingrp01",
+    "type": "http in",
+    "z": "p101tab00000001",
+    "name": "",
+    "url": "/api/bbk-lf7/gruppen",
+    "method": "get",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 150,
+    "y": 960,
+    "wires": [
+      [
+        "p101grpausgab01"
+      ]
+    ]
+  },
+  {
+    "id": "p101grpausgab01",
+    "type": "function",
+    "z": "p101tab00000001",
+    "name": "Vergleich ausgeben",
+    "func": "// GET /api/bbk-lf7/gruppen: Vergleich aller gehörten Topics als JSON\nmsg.headers = {\n    \"Content-Type\": \"application/json\",\n    \"Access-Control-Allow-Origin\": \"*\",\n    \"Cache-Control\": \"no-store\"\n};\nconst jetzt = Date.now();\nconst runden = v => (v === null || v === undefined) ? null : Math.round(v * 1000) / 1000;\nconst alle = Object.values(flow.get(\"gruppen\") || {});\nmsg.payload = {\n    seit: alle.length ? new Date(Math.min(...alle.map(g => g.erste))).toISOString() : null,\n    gruppen: alle.sort((a, b) => a.topic.localeCompare(b.topic, \"de\", { numeric: true })).map(g => {\n        const sekunden = Math.max((g.letzte - g.erste) / 1000, 1);\n        return {\n            topic: g.topic,\n            kiste: g.kiste,\n            eigene: g.eigene,\n            nachrichten: g.anzahl,\n            proMinute: g.anzahl > 1 ? Math.round((g.anzahl - 1) / sekunden * 60 * 10) / 10 : null,\n            zuletztVorSekunden: Math.round((jetzt - g.letzte) / 1000),\n            durchschnittBytes: Math.round(g.bytes / g.anzahl),\n            retained: g.retained,\n            formate: g.formate,\n            felder: g.felder,\n            werte: g.werteAnzahl ? { min: runden(g.min), max: runden(g.max), durchschnitt: runden(g.summe / g.werteAnzahl), letzter: runden(g.letzterWert) } : null,\n            beispiel: g.beispiel\n        };\n    })\n};\nmsg.statusCode = 200;\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 430,
+    "y": 960,
+    "wires": [
+      [
+        "p101httpresgrp1"
+      ]
+    ]
+  },
+  {
+    "id": "p101httpresgrp1",
+    "type": "http response",
+    "z": "p101tab00000001",
+    "name": "JSON-Antwort",
+    "statusCode": "",
+    "headers": {},
+    "x": 680,
+    "y": 960,
+    "wires": []
+  },
+  {
     "id": "p101comment0010",
     "type": "comment",
+    "z": "p101tab00000001",
     "name": "Aufgabe 10 · Dashboard (FlowFuse Dashboard 2.0)",
     "info": "Erweiterung: @flowfuse/node-red-dashboard\nAufruf: http://<pi>:1880/dashboard",
     "x": 228,
     "y": 1000,
-    "wires": [],
-    "z": "p101tab00000001"
+    "wires": []
   },
   {
     "id": "p101fuerdash001",
     "type": "function",
+    "z": "p101tab00000001",
     "name": "Für Dashboard aufbereiten",
     "func": "// Messwert für das Dashboard aufbereiten:\n// Ausgang 1: Zahl für Tacho und Diagramm, Ausgang 2: Text mit Wert und Uhrzeit\nconst wert = msg.payload.value;\nconst zeit = new Date(msg.payload.timestamp).toLocaleTimeString(\"de-DE\", { timeZone: \"Europe/Berlin\" });\nreturn [\n    { payload: Math.round(wert * 100) / 100, topic: \"P-101\" },\n    { payload: wert.toFixed(2).replace(\".\", \",\") + \" mm/s um \" + zeit }\n];\n",
     "outputs": 2,
@@ -715,12 +717,12 @@
       [
         "p101uitextnow01"
       ]
-    ],
-    "z": "p101tab00000001"
+    ]
   },
   {
     "id": "p101uigauge0001",
     "type": "ui-gauge",
+    "z": "p101tab00000001",
     "name": "Tacho",
     "group": "p101uigroup0001",
     "order": 1,
@@ -761,12 +763,14 @@
     "className": "",
     "x": 467,
     "y": 1040,
-    "wires": [],
-    "z": "p101tab00000001"
+    "wires": [
+      []
+    ]
   },
   {
     "id": "p101uitextnow01",
     "type": "ui-text",
+    "z": "p101tab00000001",
     "group": "p101uigroup0001",
     "order": 2,
     "width": 0,
@@ -785,12 +789,12 @@
     "valueType": "msg",
     "x": 467,
     "y": 1120,
-    "wires": [],
-    "z": "p101tab00000001"
+    "wires": []
   },
   {
     "id": "p101uitextavg01",
     "type": "ui-text",
+    "z": "p101tab00000001",
     "group": "p101uigroup0001",
     "order": 3,
     "width": 0,
@@ -809,12 +813,12 @@
     "valueType": "msg",
     "x": 721,
     "y": 720,
-    "wires": [],
-    "z": "p101tab00000001"
+    "wires": []
   },
   {
     "id": "p101uichart0001",
     "type": "ui-chart",
+    "z": "p101tab00000001",
     "group": "p101uigroup0002",
     "name": "Verlauf",
     "label": "Vibration in mm/s",
@@ -869,8 +873,9 @@
     "interpolation": "linear",
     "x": 467,
     "y": 1080,
-    "wires": [],
-    "z": "p101tab00000001"
+    "wires": [
+      []
+    ]
   },
   {
     "id": "p101linkout0001",
@@ -882,7 +887,9 @@
       "p101linkinws001",
       "p101linkinmq001",
       "p101linkindb001",
-      "p101linkinui001"
+      "p101linkinui001",
+      "p101e1linkin001",
+      "p101e2linkin001"
     ],
     "x": 965,
     "y": 140,
@@ -951,5 +958,492 @@
         "p101fuerdash001"
       ]
     ]
+  },
+  {
+    "id": "p101e1comment01",
+    "type": "comment",
+    "name": "Extra 1 · Alarm mit Entwarnungsschwelle (Hysterese)",
+    "info": "Warnung ab 4,5 mm/s, Entwarnung erst unter 4,0 mm/s.\nAlarm ab 7,1 mm/s, Entwarnung erst unter 6,5 mm/s.\nEine Meldung geht nur beim Wechsel der Stufe raus, also genau einmal.\nMQTT: /bbk-lf7/18/power-house/vibration/alarm (retained, QoS 2)\nTest: Inject \"Test: Werte pendeln um 7,1\" anklicken, Ergebnis im Debug-Fenster.",
+    "wires": [],
+    "z": "p101tab00000001",
+    "x": 243,
+    "y": 1200
+  },
+  {
+    "id": "p101e1linkin001",
+    "type": "link in",
+    "name": "Messwert",
+    "links": [
+      "p101linkout0001"
+    ],
+    "wires": [
+      [
+        "p101e1grenzen01"
+      ]
+    ],
+    "z": "p101tab00000001",
+    "x": 45,
+    "y": 1240
+  },
+  {
+    "id": "p101e1testinj01",
+    "type": "inject",
+    "name": "Test: Werte pendeln um 7,1",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "test",
+    "payload": "[3.0, 4.6, 4.4, 4.6, 5.8, 7.2, 7.0, 7.15, 6.9, 7.12, 6.6, 6.4, 5.0, 4.3, 4.6, 4.2, 3.9, 3.0]",
+    "payloadType": "json",
+    "wires": [
+      [
+        "p101e1grenzen01"
+      ]
+    ],
+    "z": "p101tab00000001",
+    "x": 161,
+    "y": 1300
+  },
+  {
+    "id": "p101e1grenzen01",
+    "type": "function",
+    "name": "Grenzen überwachen",
+    "func": "// Extra 1: Grenzwerte überwachen, mit Entwarnungsschwelle (Hysterese).\n// Eine Stufe gilt, bis der Wert unter ihre niedrigere Entwarnungsschwelle fällt.\n// Pendelt der Wert knapp um eine Grenze, bleibt es deshalb bei genau einer Meldung.\n//   Warnung ab 4,5 mm/s, Entwarnung erst unter 4,0 mm/s\n//   Alarm   ab 7,1 mm/s, Entwarnung erst unter 6,5 mm/s\n// Ausgang 1: Meldung, nur wenn sich die Stufe ändert\n// Ausgang 2: aktueller Zustand als Text fürs Dashboard (bei jedem Wert)\n// Ausgang 3: Ergebnis der Testfolge (Inject \"Test: Werte pendeln um 7,1\")\nconst GRENZEN = {\n    warnung: { an: 4.5, aus: 4.0 },\n    alarm:   { an: 7.1, aus: 6.5 }\n};\nconst STUFEN = [\"normal\", \"warnung\", \"alarm\"];\nconst NAMEN = [\"Normal\", \"Warnung\", \"Alarm\"];\nconst TOPIC = \"/bbk-lf7/18/power-house/vibration/alarm\";\n\nfunction neueStufe(alt, wert) {\n    if (wert >= GRENZEN.alarm.an) return 2;\n    if (alt === 2 && wert >= GRENZEN.alarm.aus) return 2;\n    if (wert >= GRENZEN.warnung.an) return 1;\n    if (alt >= 1 && wert >= GRENZEN.warnung.aus) return 1;\n    return 0;\n}\n\nconst komma = (v, stellen) => v.toFixed(stellen).replace(\".\", \",\");\nconst zeitpunkt = iso => {\n    const d = new Date(iso);\n    const tz = { timeZone: \"Europe/Berlin\" };\n    const heute = d.toLocaleDateString(\"de-DE\", tz) === new Date().toLocaleDateString(\"de-DE\", tz);\n    return (heute ? \"\" : d.toLocaleDateString(\"de-DE\", { ...tz, day: \"2-digit\", month: \"2-digit\" }) + \" \") +\n        d.toLocaleTimeString(\"de-DE\", tz);\n};\n\n// Meldung beim Wechsel von Stufe alt auf Stufe neu\nfunction meldung(alt, neu, wert, timestamp) {\n    let ereignis, grenze, text;\n    if (neu > alt) {\n        const g = GRENZEN[STUFEN[neu]];\n        ereignis = NAMEN[neu];\n        grenze = g.an;\n        text = `${ereignis}: ${komma(wert, 2)} mm/s (ab ${komma(g.an, 1)}). Entwarnung erst unter ${komma(g.aus, 1)} mm/s.`;\n    } else if (neu === 1) {\n        ereignis = \"Entwarnung\";\n        grenze = GRENZEN.alarm.aus;\n        text = `Entwarnung Alarm: ${komma(wert, 2)} mm/s (unter ${komma(grenze, 1)}). Warnung bleibt bis unter ${komma(GRENZEN.warnung.aus, 1)} mm/s.`;\n    } else {\n        ereignis = \"Entwarnung\";\n        grenze = GRENZEN.warnung.aus;\n        text = `Entwarnung: ${komma(wert, 2)} mm/s (unter ${komma(grenze, 1)}). Wieder normal.`;\n    }\n    return { art: \"alarm\", ereignis, zustand: STUFEN[neu], vorher: STUFEN[alt], wert, grenze, text, timestamp };\n}\n\n// Testfolge mit eigenem Zustand durchspielen, der echte Zustand bleibt unberührt\nif (msg.topic === \"test\") {\n    const werte = msg.payload;\n    let stufe = 0, ohne = 0, ohneSchwelle = 0;\n    const meldungen = [];\n    for (const w of werte) {\n        const neu = neueStufe(stufe, w);\n        if (neu !== stufe) meldungen.push(meldung(stufe, neu, w, new Date().toISOString()).text);\n        stufe = neu;\n        // Zum Vergleich: dieselben Grenzen ohne Entwarnungsschwelle\n        const o = w >= GRENZEN.alarm.an ? 2 : w >= GRENZEN.warnung.an ? 1 : 0;\n        if (o !== ohne) ohneSchwelle++;\n        ohne = o;\n    }\n    return [null, null, { payload: { werte, meldungen, anzahl: meldungen.length, ohneEntwarnungsschwelle: ohneSchwelle } }];\n}\n\nconst wert = msg.payload.value;\nlet z = context.get(\"zustand\");\nif (!z) {\n    // Nach Deploy oder Neustart mit der zuletzt gemeldeten Stufe weitermachen,\n    // damit ein laufender Alarm nicht ein zweites Mal gemeldet wird\n    const db = flow.get(\"p101db\");\n    const letzte = db && db.prepare(\"SELECT ts, zustand FROM meldung WHERE art = 'alarm' ORDER BY ts DESC LIMIT 1\").get();\n    z = letzte\n        ? { stufe: Math.max(0, STUFEN.indexOf(letzte.zustand)), seit: new Date(letzte.ts).toISOString() }\n        : { stufe: 0, seit: null };\n}\n\nconst neu = neueStufe(z.stufe, wert);\nlet aus1 = null;\nif (neu !== z.stufe) {\n    aus1 = { topic: TOPIC, payload: meldung(z.stufe, neu, wert, msg.payload.timestamp) };\n    z = { stufe: neu, seit: msg.payload.timestamp };\n}\ncontext.set(\"zustand\", z);\n\n// Aktueller Zustand für den REST-Endpunkt /api/p101/meldungen\nflow.set(\"p101alarm\", { zustand: STUFEN[z.stufe], seit: z.seit, wert, timestamp: msg.payload.timestamp });\n\nconst text = NAMEN[z.stufe] + (z.seit ? \" seit \" + zeitpunkt(z.seit) : \"\");\nnode.status({ fill: [\"green\", \"yellow\", \"red\"][z.stufe], shape: \"dot\", text });\nreturn [aus1, { payload: text }, null];\n",
+    "outputs": 3,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "wires": [
+      [
+        "p101e1linkout01"
+      ],
+      [
+        "p101e1uitext001"
+      ],
+      [
+        "p101e1debug0001"
+      ]
+    ],
+    "outputLabels": [
+      "Meldung (nur beim Wechsel)",
+      "Zustand fürs Dashboard",
+      "Ergebnis der Testfolge"
+    ],
+    "z": "p101tab00000001",
+    "x": 443,
+    "y": 1270
+  },
+  {
+    "id": "p101e1linkout01",
+    "type": "link out",
+    "name": "Meldung",
+    "mode": "link",
+    "links": [
+      "p101e3linkin001"
+    ],
+    "wires": [],
+    "z": "p101tab00000001",
+    "x": 609,
+    "y": 1230
+  },
+  {
+    "id": "p101e1uitext001",
+    "type": "ui-text",
+    "z": "p101tab00000001",
+    "group": "p101uigroup0001",
+    "order": 4,
+    "width": 0,
+    "height": 0,
+    "name": "Grenzwerte",
+    "label": "Grenzwerte",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "style": false,
+    "font": "",
+    "fontSize": 16,
+    "color": "#717171",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg",
+    "x": 666,
+    "y": 1270,
+    "wires": []
+  },
+  {
+    "id": "p101e1debug0001",
+    "type": "debug",
+    "name": "Testergebnis (Debug)",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "wires": [],
+    "z": "p101tab00000001",
+    "x": 703,
+    "y": 1310
+  },
+  {
+    "id": "p101e2comment01",
+    "type": "comment",
+    "name": "Extra 2 · Ausfall erkennen (Watchdog)",
+    "info": "Kommt länger als 10 s kein Messwert, meldet der Flow genau einmal \"Ausfall\",\nbeim ersten Wert danach genau einmal \"Wieder da\". Nach Deploy oder Neustart wartet er 30 s.\nMQTT: /bbk-lf7/18/power-house/vibration/status (retained, QoS 2)\nTest: Inject \"Test: Ausfall 20 s\" anklicken. \"Messwert aufbereiten\" verwirft dann 20 s lang alle Werte.",
+    "wires": [],
+    "z": "p101tab00000001",
+    "x": 191,
+    "y": 1380
+  },
+  {
+    "id": "p101e2linkin001",
+    "type": "link in",
+    "name": "Messwert",
+    "links": [
+      "p101linkout0001"
+    ],
+    "wires": [
+      [
+        "p101e2ausfall01"
+      ]
+    ],
+    "z": "p101tab00000001",
+    "x": 45,
+    "y": 1420
+  },
+  {
+    "id": "p101e2takt00001",
+    "type": "inject",
+    "name": "alle 2 s",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "2",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "takt",
+    "payload": "",
+    "payloadType": "date",
+    "wires": [
+      [
+        "p101e2ausfall01"
+      ]
+    ],
+    "z": "p101tab00000001",
+    "x": 102,
+    "y": 1460
+  },
+  {
+    "id": "p101e2ausfall01",
+    "type": "function",
+    "name": "Ausfall überwachen",
+    "func": "// Extra 2: Ausfall erkennen (Watchdog).\n// Eingang: jeder Messwert und alle 2 s ein Takt (topic \"takt\").\n// Kommt länger als 10 s kein Messwert, geht genau einmal \"Ausfall\" raus,\n// beim ersten Wert danach genau einmal \"Wieder da\".\n// Ausgang 1: Meldung, nur beim Wechsel\n// Ausgang 2: Zustand als Text fürs Dashboard (bei jedem Takt)\nconst GRENZE_MS = 10 * 1000;   // Milo schickt jede Sekunde einen Wert\nconst START_MS = 30 * 1000;    // nach Deploy oder Neustart dauert es länger bis zum ersten Wert\nconst TOPIC = \"/bbk-lf7/18/power-house/vibration/status\";\n\nconst jetzt = Date.now();\nconst zeitpunkt = ms => {\n    const d = new Date(ms);\n    const tz = { timeZone: \"Europe/Berlin\" };\n    const heute = d.toLocaleDateString(\"de-DE\", tz) === new Date(jetzt).toLocaleDateString(\"de-DE\", tz);\n    return (heute ? \"\" : d.toLocaleDateString(\"de-DE\", { ...tz, day: \"2-digit\", month: \"2-digit\" }) + \" \") +\n        d.toLocaleTimeString(\"de-DE\", tz);\n};\nconst dauer = ms => {\n    const s = Math.round(ms / 1000);\n    if (s < 120) return s + \" s\";\n    if (s < 2 * 3600) return Math.round(s / 60) + \" min\";\n    if (s < 2 * 86400) return Math.round(s / 3600) + \" h\";\n    return Math.round(s / 86400) + \" Tage\";\n};\n\nlet z = context.get(\"zustand\");\nif (!z) {\n    // Nach Deploy oder Neustart: War zuletzt ein Ausfall gemeldet, gilt er weiter,\n    // bis wieder ein Wert kommt. Sonst beginnt die Überwachung jetzt.\n    const db = flow.get(\"p101db\");\n    const letzte = db && db.prepare(\"SELECT ts, zustand FROM meldung WHERE art = 'ausfall' ORDER BY ts DESC LIMIT 1\").get();\n    const offen = letzte && letzte.zustand === \"ausfall\";\n    // Gemeldet wurde der Ausfall 10 s nach dem letzten Wert\n    z = { start: jetzt, letzter: null, ausfall: !!offen, seit: offen ? letzte.ts - GRENZE_MS : null };\n}\n\nfunction meldung(ereignis, text, wert) {\n    return {\n        topic: TOPIC,\n        payload: {\n            art: \"ausfall\",\n            ereignis,\n            zustand: z.ausfall ? \"ausfall\" : \"ok\",\n            seit: z.seit ? new Date(z.seit).toISOString() : null,\n            wert: wert === undefined ? null : wert,\n            text,\n            timestamp: new Date(jetzt).toISOString()\n        }\n    };\n}\n\nlet aus1 = null;\nif (msg.topic === \"takt\") {\n    const bezug = z.letzter || z.start;\n    const grenze = z.letzter ? GRENZE_MS : START_MS;\n    if (!z.ausfall && jetzt - bezug > grenze) {\n        z.ausfall = true;\n        z.seit = bezug;\n        aus1 = meldung(\"Ausfall\", z.letzter\n            ? `Ausfall: Seit ${zeitpunkt(z.letzter)} kommen keine Messwerte vom OPC-UA-Server.`\n            : `Ausfall: Seit dem Start um ${zeitpunkt(z.start)} kam kein Messwert vom OPC-UA-Server.`);\n    }\n} else {\n    if (z.ausfall) {\n        const lang = dauer(jetzt - z.seit);\n        z.ausfall = false;\n        aus1 = meldung(\"Wieder da\", `Wieder da: Messwerte kommen wieder (${msg.payload.value.toFixed(2).replace(\".\", \",\")} mm/s), Ausfall dauerte ${lang}.`, msg.payload.value);\n    }\n    z.letzter = jetzt;\n    z.seit = null;\n}\ncontext.set(\"zustand\", z);\n\n// Aktueller Zustand für den REST-Endpunkt /api/p101/meldungen\nflow.set(\"p101datenfluss\", {\n    zustand: z.ausfall ? \"ausfall\" : \"ok\",\n    seit: z.seit ? new Date(z.seit).toISOString() : null,\n    letzterWert: z.letzter ? new Date(z.letzter).toISOString() : null\n});\n\nif (msg.topic !== \"takt\") return [aus1, null];\nlet text;\nif (z.ausfall) text = `Ausfall seit ${zeitpunkt(z.seit)} (${dauer(jetzt - z.seit)})`;\nelse if (z.letzter) text = `Werte kommen, letzter vor ${dauer(jetzt - z.letzter)}`;\nelse text = \"Warte auf den ersten Wert\";\nnode.status({ fill: z.ausfall ? \"red\" : z.letzter ? \"green\" : \"grey\", shape: \"dot\", text });\nreturn [aus1, { payload: text }];\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "wires": [
+      [
+        "p101e2linkout01"
+      ],
+      [
+        "p101e2uitext001"
+      ]
+    ],
+    "outputLabels": [
+      "Meldung (nur beim Wechsel)",
+      "Zustand fürs Dashboard"
+    ],
+    "z": "p101tab00000001",
+    "x": 325,
+    "y": 1440
+  },
+  {
+    "id": "p101e2linkout01",
+    "type": "link out",
+    "name": "Meldung",
+    "mode": "link",
+    "links": [
+      "p101e3linkin001"
+    ],
+    "wires": [],
+    "z": "p101tab00000001",
+    "x": 491,
+    "y": 1420
+  },
+  {
+    "id": "p101e2uitext001",
+    "type": "ui-text",
+    "z": "p101tab00000001",
+    "group": "p101uigroup0001",
+    "order": 5,
+    "width": 0,
+    "height": 0,
+    "name": "Datenfluss",
+    "label": "Datenfluss",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "style": false,
+    "font": "",
+    "fontSize": 16,
+    "color": "#717171",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg",
+    "x": 548,
+    "y": 1460,
+    "wires": []
+  },
+  {
+    "id": "p101e2testinj01",
+    "type": "inject",
+    "name": "Test: Ausfall 20 s",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "wires": [
+      [
+        "p101e2testchg01"
+      ]
+    ],
+    "z": "p101tab00000001",
+    "x": 131,
+    "y": 1520
+  },
+  {
+    "id": "p101e2testchg01",
+    "type": "change",
+    "name": "Messwerte 20 s verwerfen",
+    "rules": [
+      {
+        "t": "set",
+        "p": "p101testausfall",
+        "pt": "flow",
+        "to": "$millis() + 20000",
+        "tot": "jsonata"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "wires": [
+      []
+    ],
+    "z": "p101tab00000001",
+    "x": 406,
+    "y": 1520
+  },
+  {
+    "id": "p101e3comment01",
+    "type": "comment",
+    "name": "Extra 1 + 2 · Meldungen weitergeben",
+    "info": "Jede Meldung geht per MQTT raus (retained, damit neue Abonnenten den Zustand kennen),\nin die Tabelle meldung und als Popup ins Dashboard.\nREST: GET /api/p101/meldungen?minutes=60 liefert Zustand und Meldungen.",
+    "wires": [],
+    "z": "p101tab00000001",
+    "x": 184,
+    "y": 1580
+  },
+  {
+    "id": "p101e3linkin001",
+    "type": "link in",
+    "name": "Meldung",
+    "links": [
+      "p101e1linkout01",
+      "p101e2linkout01"
+    ],
+    "wires": [
+      [
+        "p101e3mqttout01",
+        "p101e3debug0001",
+        "p101e3dbspeich1",
+        "p101e3popupfn01"
+      ]
+    ],
+    "z": "p101tab00000001",
+    "x": 45,
+    "y": 1680
+  },
+  {
+    "id": "p101e3mqttout01",
+    "type": "mqtt out",
+    "name": "An HiveMQ senden (retained)",
+    "topic": "",
+    "qos": "2",
+    "retain": "true",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "p101mqttbroker1",
+    "wires": [],
+    "z": "p101tab00000001",
+    "x": 254,
+    "y": 1620
+  },
+  {
+    "id": "p101e3debug0001",
+    "type": "debug",
+    "name": "Meldungen (Debug)",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "wires": [],
+    "z": "p101tab00000001",
+    "x": 217,
+    "y": 1660
+  },
+  {
+    "id": "p101e3dbspeich1",
+    "type": "function",
+    "name": "Meldung speichern",
+    "func": "// Jede Meldung (Alarm, Warnung, Entwarnung, Ausfall, Wieder da) in die Tabelle \"meldung\" schreiben\nconst db = flow.get(\"p101db\");\nif (!db) {\n    node.error(\"Datenbank ist nicht geöffnet\", msg);\n    return null;\n}\nconst m = msg.payload;\ndb.prepare(\"INSERT INTO meldung (ts, art, ereignis, zustand, wert, text) VALUES (?, ?, ?, ?, ?, ?)\")\n    .run(Date.parse(m.timestamp) || Date.now(), m.art, m.ereignis, m.zustand, m.wert ?? null, m.text);\n\n// Meldungen älter als 7 Tage löschen\ndb.prepare(\"DELETE FROM meldung WHERE ts < ?\").run(Date.now() - 7 * 24 * 60 * 60 * 1000);\n\nconst anzahl = db.prepare(\"SELECT COUNT(*) AS n FROM meldung\").get().n;\nnode.status({ fill: \"green\", shape: \"dot\", text: anzahl + \" Meldungen gespeichert\" });\nreturn null;\n",
+    "outputs": 0,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "wires": [],
+    "z": "p101tab00000001",
+    "x": 217,
+    "y": 1700
+  },
+  {
+    "id": "p101e3popupfn01",
+    "type": "function",
+    "name": "Popup aufbereiten",
+    "func": "// Meldung als Popup im Dashboard anzeigen, Farbe je nach Ereignis\nconst FARBEN = {\n    \"Alarm\": \"#ff5c5c\",\n    \"Warnung\": \"#f5b942\",\n    \"Entwarnung\": \"#3ddc84\",\n    \"Ausfall\": \"#ff5c5c\",\n    \"Wieder da\": \"#3ddc84\"\n};\nreturn {\n    payload: msg.payload.text,\n    ui_update: { color: FARBEN[msg.payload.ereignis] || \"#6aa8ee\" }\n};\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "wires": [
+      [
+        "p101e3uinotif01"
+      ]
+    ],
+    "z": "p101tab00000001",
+    "x": 217,
+    "y": 1740
+  },
+  {
+    "id": "p101e3uinotif01",
+    "type": "ui-notification",
+    "ui": "p101uibase00001",
+    "position": "top right",
+    "colorDefault": false,
+    "color": "#6aa8ee",
+    "displayTime": "6",
+    "showCountdown": true,
+    "outputs": 1,
+    "allowDismiss": true,
+    "dismissText": "Schließen",
+    "allowConfirm": false,
+    "confirmText": "OK",
+    "raw": false,
+    "className": "",
+    "name": "Popup",
+    "wires": [
+      []
+    ],
+    "z": "p101tab00000001",
+    "x": 418,
+    "y": 1740
+  },
+  {
+    "id": "p101e3httpin001",
+    "type": "http in",
+    "name": "",
+    "url": "/api/p101/meldungen",
+    "method": "get",
+    "upload": false,
+    "skipBodyParsing": false,
+    "swaggerDoc": "",
+    "wires": [
+      [
+        "p101e3abfrage01"
+      ]
+    ],
+    "z": "p101tab00000001",
+    "x": 157,
+    "y": 1800
+  },
+  {
+    "id": "p101e3abfrage01",
+    "type": "function",
+    "name": "Meldungen abfragen",
+    "func": "// GET /api/p101/meldungen?minutes=60\n// Liefert den aktuellen Zustand (Extra 1 und 2) und die Meldungen der letzten Minuten\n// (Standard 60, höchstens 1440 = 24 Stunden), neueste zuerst.\nmsg.headers = {\n    \"Content-Type\": \"application/json\",\n    \"Access-Control-Allow-Origin\": \"*\",   // Webapp auf GitHub Pages darf abfragen\n    \"Cache-Control\": \"no-store\"\n};\n\nconst db = flow.get(\"p101db\");\nif (!db) {\n    msg.statusCode = 503;\n    msg.payload = { error: \"Datenbank nicht bereit\" };\n    return msg;\n}\n\nlet minutes = parseInt(msg.req.query.minutes, 10);\nif (!Number.isFinite(minutes)) minutes = 60;\nminutes = Math.min(Math.max(minutes, 1), 1440);\n\nconst seit = Date.now() - minutes * 60 * 1000;\nconst rows = db.prepare(`\n    SELECT ts, art, ereignis, zustand, wert, text\n    FROM meldung\n    WHERE ts >= ?\n    ORDER BY ts DESC\n    LIMIT 200\n`).all(seit);\n\nmsg.statusCode = 200;\nmsg.payload = {\n    source: \"P-101 Vibration\",\n    zustand: {\n        grenzwerte: flow.get(\"p101alarm\") || null,\n        datenfluss: flow.get(\"p101datenfluss\") || null\n    },\n    minutes: minutes,\n    count: rows.length,\n    data: rows.map(r => ({\n        timestamp: new Date(r.ts).toISOString(),\n        art: r.art,\n        ereignis: r.ereignis,\n        zustand: r.zustand,\n        wert: r.wert,\n        text: r.text\n    }))\n};\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "wires": [
+      [
+        "p101e3httpres01"
+      ]
+    ],
+    "z": "p101tab00000001",
+    "x": 436,
+    "y": 1800
+  },
+  {
+    "id": "p101e3httpres01",
+    "type": "http response",
+    "name": "JSON-Antwort",
+    "statusCode": "",
+    "headers": {},
+    "wires": [],
+    "z": "p101tab00000001",
+    "x": 667,
+    "y": 1800
   }
 ]
