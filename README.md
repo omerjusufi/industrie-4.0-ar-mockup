@@ -84,11 +84,11 @@ HiveMQ /bbk-lf7/+/power-house/vibration ──► Node-RED ──► REST /api/b
 | OPC-UA-Server | `opc.tcp://milo.digitalpetri.com:62541/milo` (anonym, ohne Verschlüsselung) |
 | NodeId | `ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration` (Double, mm/s, 0 bis 20, Alarm ab 4,5 / 7,1) |
 | WebSocket | `ws://<pi>:1880/ws/p101`, über den Tunnel `wss://<tunnel>.lhr.life/ws/p101` |
-| MQTT | `broker.hivemq.com`, Topic `/bbk-lf7/18/power-house/vibration` (18 = Kistennummer), im Browser `wss://broker.hivemq.com:8884/mqtt` |
+| MQTT | `broker.hivemq.com`, Topic `/bbk-lf7/18/power-house/vibration` (18 = Kistennummer), im Browser `wss://broker.hivemq.com:8884/mqtt`, nur Änderungen ab 0,1 mm/s (Totband, spätestens alle 10 s ein Wert), retained |
 | Andere Gruppen | abonniert `/bbk-lf7/+/power-house/vibration`, Vergleich unter `GET /api/bbk-lf7/gruppen` |
 | REST | `GET /api/p101/vibration?minutes=5` Messwerte, `GET /api/p101/vibration/avg?minutes=5` Durchschnitt (je 1 bis 60 Minuten), JSON, CORS freigegeben |
 | Datenbank | SQLite-Datei `~/.node-red/p101.db`, Relation `vibration(id, ts, value)`, Werte älter als 24 h werden gelöscht |
-| Dashboard | `http://<pi>:1880/dashboard` (FlowFuse Node-RED Dashboard 2.0): Tacho, aktueller Wert, Ø 5 Minuten, Grenzwerte, Datenfluss, Verlauf, Popup bei jeder Meldung |
+| Dashboard | `http://<pi>:1880/dashboard` (FlowFuse Node-RED Dashboard 2.0): Tacho, aktueller Wert, Ø 10 Werte (gleitend), Ø 5 Minuten, Grenzwerte, Datenfluss, Verlauf mit gleitendem Mittelwert, Popup bei jeder Meldung |
 | Meldungen | MQTT `/bbk-lf7/18/power-house/vibration/alarm` und `…/status` (retained, QoS 2), `GET /api/p101/meldungen?minutes=60` |
 
 Jede Nachricht hat diese Form:
@@ -178,8 +178,8 @@ Der Function-Node *Ausfall überwachen* bekommt jeden Messwert und alle 2 Sekund
 alle Werte, auf allen Wegen.
 
 Fällt der ganze Pi oder der Tunnel aus, kann er selbst nichts mehr melden. Dann meldet sich die Webapp: Kommt
-10 Sekunden lang kein neuer Wert, zeigt sie oben „Keine Messwerte mehr seit …“, ohne Werte seit dem Öffnen nach
-20 Sekunden einen Hinweis.
+15 Sekunden lang kein neuer Wert, zeigt sie oben „Keine Messwerte mehr seit …“, ohne Werte seit dem Öffnen nach
+20 Sekunden einen Hinweis. 15 statt 10 Sekunden, weil MQTT wegen des Totbands bis zu 10 Sekunden schweigen darf.
 
 Jede Meldung geht an MQTT (retained, damit neue Abonnenten den Zustand sofort kennen), in die Tabelle `meldung`,
 als Popup ins Dashboard und an das Debug-Fenster:
@@ -199,6 +199,34 @@ SELECT ts, art, ereignis, zustand, wert, text FROM meldung WHERE ts >= ? ORDER B
 
 Das MQTT-Topic ist öffentlich. Jeder könnte dort eine falsche Meldung einstellen, die Webapp zeigt den Text deshalb
 nur als Text an, nie als HTML.
+
+### Wahlaufgaben: Mehr Logik, mehr Knoten
+
+| Nr. | Anforderung | Umsetzung im Flow |
+| --- | --- | --- |
+| 1 | Nur bei Änderung senden (Totband) | filter-Node *Totband 0,1 mm/s* vor *An HiveMQ senden* |
+| 2 | Gleitender Mittelwert über 10 Werte | join + function im Subflow *Gleitender Mittelwert*, Ausgabe im Dashboard |
+| 3 | Webapp zeigt nach dem Neuladen sofort den letzten Wert über MQTT | *An HiveMQ senden* mit `retain: true` |
+| 4 | Flow strukturieren: Subflow | Subflow *Gleitender Mittelwert* mit der Einstellung `ANZAHL` (Standard 10) |
+
+**1 Totband:** Der filter-Node (Modus *deadband*, Eigenschaft `msg.payload.value`) lässt einen Wert nur durch, wenn
+er sich um mehr als 0,1 mm/s vom zuletzt gesendeten unterscheidet. Allein würde MQTT dann bis zu 78 Sekunden
+schweigen, und niemand könnte einen ruhigen Wert von einem Ausfall unterscheiden. Deshalb schickt der Inject
+*Lebenszeichen alle 10 s* ein `msg.reset` an den filter-Node, danach geht der nächste Wert auf jeden Fall raus.
+Mit den gespeicherten Milo-Werten ergibt das 57 % weniger MQTT-Nachrichten (etwa 37.500 statt 86.400 am Tag),
+höchstens 10 Sekunden Pause. WebSocket, Datenbank und Ausfall-Watchdog bekommen weiterhin jeden Wert.
+
+**2 und 4 Gleitender Mittelwert als Subflow:** Im Subflow gibt der Function-Node *Platz im Ringpuffer* jedem Wert
+einen Platz `platz0` bis `platz9` als `msg.topic`. Der join-Node baut daraus ein Objekt (*key/value*, Schlüssel
+`msg.topic`) und schickt es ab dem 10. Wert bei jedem weiteren Wert neu (*und jede weitere Nachricht*). Weil die Plätze
+immer wieder überschrieben werden, stehen im Objekt immer genau die letzten 10 Werte. *Mittelwert berechnen* bildet
+daraus den Durchschnitt. Die Anzahl ist eine Einstellung der Subflow-Instanz (`ANZAHL`, im join-Node als
+`${ANZAHL}`), der Subflow lässt sich also für andere Messwerte und Fenstergrößen wiederverwenden.
+
+**3 retain:** Der Broker hebt den letzten Messwert auf und schickt ihn jedem neuen Abonnenten sofort. Die Webapp
+zeigt ihn als „letzter gespeicherter Wert vom MQTT-Broker (retained)“. Ein retained Wert kann alt sein, zum Beispiel
+wenn der Pi aus ist. Die Webapp rechnet sein Alter deshalb ab seinem Zeitstempel und meldet einen veralteten Wert
+als „Keine aktuellen Daten“.
 
 Hinweise:
 - **Editor-Passwort:** Der Tunnel macht den ganzen Node-RED auf Port 1880 öffentlich erreichbar, auch den Editor. Deshalb vorher das Passwort setzen.

@@ -7,6 +7,73 @@
     "info": "LF7 · Datenaustausch in Node-RED\n\nOPC UA (Milo) → Debug, WebSocket, MQTT (HiveMQ), SQLite, REST und Dashboard 2.0.\n\n- WebSocket: `/ws/p101`\n- MQTT-Topic: `/bbk-lf7/18/power-house/vibration`\n- Andere Gruppen: `/bbk-lf7/+/power-house/vibration`, Auswertung unter `GET /api/bbk-lf7/gruppen`\n- REST: `GET /api/p101/vibration?minutes=5` (Messwerte) und `GET /api/p101/vibration/avg?minutes=5` (Durchschnitt)\n- Dashboard: `/dashboard`"
   },
   {
+    "id": "p101w4subflow01",
+    "type": "subflow",
+    "name": "Gleitender Mittelwert",
+    "info": "Gleitender Mittelwert über die letzten ANZAHL Werte (Standard 10).\n\nEingang: msg.payload als Zahl oder Objekt mit .value\nAusgang: msg.payload = Mittelwert, msg.anzahl = Zahl der Werte, msg.topic = \"Ø 10 Werte\"\n\nEin Function-Node vergibt jedem Wert einen Platz 0 … ANZAHL-1 (msg.topic). Der Join-Node baut daraus\nein Objekt und schickt es ab dem ANZAHL-ten Wert bei jedem weiteren Wert neu (\"und jede weitere\nNachricht\"). Weil ein Platz immer wieder überschrieben wird, enthält das Objekt immer genau die\nletzten ANZAHL Werte.",
+    "category": "",
+    "in": [
+      {
+        "x": 60,
+        "y": 80,
+        "wires": [
+          {
+            "id": "p101w4platz0001"
+          }
+        ]
+      }
+    ],
+    "out": [
+      {
+        "x": 840,
+        "y": 60,
+        "wires": [
+          {
+            "id": "p101w4mwert0001",
+            "port": 0
+          }
+        ]
+      }
+    ],
+    "env": [
+      {
+        "name": "ANZAHL",
+        "type": "num",
+        "value": "10",
+        "ui": {
+          "label": {
+            "en-US": "Anzahl Werte"
+          },
+          "type": "input",
+          "opts": {
+            "types": [
+              "num"
+            ]
+          }
+        }
+      }
+    ],
+    "meta": {},
+    "color": "#C7E9C0",
+    "inputLabels": [
+      "Messwert"
+    ],
+    "outputLabels": [
+      "Mittelwert"
+    ],
+    "icon": "node-red/join.svg",
+    "status": {
+      "x": 840,
+      "y": 120,
+      "wires": [
+        {
+          "id": "p101w4mwert0001",
+          "port": 1
+        }
+      ]
+    }
+  },
+  {
     "id": "p101opcuaep0001",
     "type": "OpcUa-Endpoint",
     "name": "Milo Demo-Server",
@@ -308,8 +375,8 @@
     "id": "p101comment0003",
     "type": "comment",
     "z": "p101tab00000001",
-    "name": "Aufgabe 3 + 4 · MQTT (HiveMQ)",
-    "info": "Broker: broker.hivemq.com:1883\nTopic: /bbk-lf7/18/power-house/vibration\nIm Browser: wss://broker.hivemq.com:8884/mqtt",
+    "name": "Aufgabe 3 + 4 · MQTT (HiveMQ), Wahlaufgabe 1 + 3 · Totband und retain",
+    "info": "Totband: Der filter-Node lässt einen Wert nur durch, wenn er sich um mehr als 0,1 mm/s\nvom zuletzt gesendeten unterscheidet. Alle 10 s setzt ein Inject (msg.reset) das Totband zurück,\ndann geht der nächste Wert als Lebenszeichen raus. Ergebnis mit den Milo-Werten: 57 % weniger\nMQTT-Nachrichten, höchstens 10 s Pause.\nretain: Der Broker hebt den letzten Wert auf und schickt ihn jedem neuen Abonnenten sofort.\nWebSocket, Datenbank und Ausfall-Watchdog bekommen weiterhin jeden Wert.",
     "x": 162,
     "y": 320,
     "wires": []
@@ -318,17 +385,17 @@
     "id": "p101mqttout0001",
     "type": "mqtt out",
     "z": "p101tab00000001",
-    "name": "An HiveMQ senden",
+    "name": "An HiveMQ senden (retained)",
     "topic": "/bbk-lf7/18/power-house/vibration",
     "qos": "0",
-    "retain": "false",
+    "retain": "true",
     "respTopic": "",
     "contentType": "",
     "userProps": "",
     "correl": "",
     "expiry": "",
     "broker": "p101mqttbroker1",
-    "x": 204,
+    "x": 482,
     "y": 360,
     "wires": []
   },
@@ -346,7 +413,7 @@
     "rh": 0,
     "inputs": 0,
     "x": 150,
-    "y": 420,
+    "y": 460,
     "wires": [
       [
         "p101debugmqtt01"
@@ -367,7 +434,7 @@
     "statusVal": "",
     "statusType": "auto",
     "x": 420,
-    "y": 420,
+    "y": 460,
     "wires": []
   },
   {
@@ -377,7 +444,7 @@
     "name": "Aufgabe 5 + 7 · SQLite-Datenbank und REST-Endpunkte",
     "info": "Datenbank: ~/.node-red/p101.db\nRelation: vibration(id, ts, value), Primärschlüssel id, Index auf ts\nWerte älter als 24 h werden gelöscht\n\nGET /api/p101/vibration?minutes=5      Messwerte der letzten Minuten (Aufgabe 7)\nGET /api/p101/vibration/avg?minutes=5  Durchschnitt der letzten Minuten (Aufgabe 5)",
     "x": 243,
-    "y": 480,
+    "y": 520,
     "wires": []
   },
   {
@@ -410,7 +477,7 @@
       }
     ],
     "x": 215,
-    "y": 520,
+    "y": 560,
     "wires": []
   },
   {
@@ -424,7 +491,7 @@
     "skipBodyParsing": false,
     "swaggerDoc": "",
     "x": 160,
-    "y": 580,
+    "y": 620,
     "wires": [
       [
         "p101restquery01"
@@ -444,7 +511,7 @@
     "finalize": "",
     "libs": [],
     "x": 450,
-    "y": 580,
+    "y": 620,
     "wires": [
       [
         "p101httpres0001"
@@ -459,7 +526,7 @@
     "statusCode": "",
     "headers": {},
     "x": 700,
-    "y": 580,
+    "y": 620,
     "wires": []
   },
   {
@@ -469,7 +536,7 @@
     "name": "Aufgabe 5 · Durchschnitt der letzten 5 Minuten",
     "info": "SQL:\nSELECT AVG(value) AS avg, MIN(value) AS min, MAX(value) AS max, COUNT(*) AS n\nFROM vibration\nWHERE ts >= ?   -- jetzt minus 5 Minuten in ms",
     "x": 225,
-    "y": 640,
+    "y": 680,
     "wires": []
   },
   {
@@ -482,7 +549,7 @@
     "upload": false,
     "swaggerDoc": "",
     "x": 172,
-    "y": 680,
+    "y": 720,
     "wires": [
       [
         "p101avgfunc0001"
@@ -507,7 +574,7 @@
     "payload": "",
     "payloadType": "date",
     "x": 105,
-    "y": 720,
+    "y": 760,
     "wires": [
       [
         "p101avgfunc0001"
@@ -527,7 +594,7 @@
     "finalize": "",
     "libs": [],
     "x": 480,
-    "y": 700,
+    "y": 740,
     "wires": [
       [
         "p101httpresavg1"
@@ -545,7 +612,7 @@
     "statusCode": "",
     "headers": {},
     "x": 725,
-    "y": 680,
+    "y": 720,
     "wires": []
   },
   {
@@ -555,7 +622,7 @@
     "name": "Aufgabe 3.1 · Andere Gruppen mithören",
     "info": "Abonniert /bbk-lf7/+/power-house/vibration (wie verlangt, mit Schrägstrich am Anfang)\nund zur Kontrolle bbk-lf7/+/power-house/vibration (falls eine Gruppe den Schrägstrich vergessen hat).\nAuswertung: GET /api/bbk-lf7/gruppen",
     "x": 191,
-    "y": 800,
+    "y": 840,
     "wires": []
   },
   {
@@ -572,7 +639,7 @@
     "rh": 0,
     "inputs": 0,
     "x": 109,
-    "y": 840,
+    "y": 880,
     "wires": [
       [
         "p101gruppen0001"
@@ -593,7 +660,7 @@
     "rh": 0,
     "inputs": 0,
     "x": 140,
-    "y": 900,
+    "y": 940,
     "wires": [
       [
         "p101gruppen0001"
@@ -613,7 +680,7 @@
     "finalize": "",
     "libs": [],
     "x": 400,
-    "y": 880,
+    "y": 920,
     "wires": [
       [
         "p101debuggrp001"
@@ -634,7 +701,7 @@
     "statusVal": "",
     "statusType": "auto",
     "x": 670,
-    "y": 880,
+    "y": 920,
     "wires": []
   },
   {
@@ -647,7 +714,7 @@
     "upload": false,
     "swaggerDoc": "",
     "x": 150,
-    "y": 960,
+    "y": 1000,
     "wires": [
       [
         "p101grpausgab01"
@@ -667,7 +734,7 @@
     "finalize": "",
     "libs": [],
     "x": 430,
-    "y": 960,
+    "y": 1000,
     "wires": [
       [
         "p101httpresgrp1"
@@ -682,7 +749,7 @@
     "statusCode": "",
     "headers": {},
     "x": 680,
-    "y": 960,
+    "y": 1000,
     "wires": []
   },
   {
@@ -692,7 +759,7 @@
     "name": "Aufgabe 10 · Dashboard (FlowFuse Dashboard 2.0)",
     "info": "Erweiterung: @flowfuse/node-red-dashboard\nAufruf: http://<pi>:1880/dashboard",
     "x": 228,
-    "y": 1000,
+    "y": 1040,
     "wires": []
   },
   {
@@ -708,7 +775,7 @@
     "finalize": "",
     "libs": [],
     "x": 237,
-    "y": 1060,
+    "y": 1100,
     "wires": [
       [
         "p101uigauge0001",
@@ -762,7 +829,7 @@
     "styleGlow": false,
     "className": "",
     "x": 467,
-    "y": 1040,
+    "y": 1080,
     "wires": [
       []
     ]
@@ -788,7 +855,7 @@
     "value": "payload",
     "valueType": "msg",
     "x": 467,
-    "y": 1120,
+    "y": 1160,
     "wires": []
   },
   {
@@ -796,7 +863,7 @@
     "type": "ui-text",
     "z": "p101tab00000001",
     "group": "p101uigroup0001",
-    "order": 3,
+    "order": 4,
     "width": 0,
     "height": 0,
     "name": "Ø 5 Minuten",
@@ -812,7 +879,7 @@
     "value": "payload",
     "valueType": "msg",
     "x": 721,
-    "y": 720,
+    "y": 760,
     "wires": []
   },
   {
@@ -844,13 +911,13 @@
     "stackSeries": false,
     "pointShape": "false",
     "pointRadius": 0,
-    "showLegend": false,
+    "showLegend": true,
     "removeOlder": "5",
     "removeOlderUnit": "60",
     "removeOlderPoints": "",
     "colors": [
       "#2b6cb0",
-      "#FF0000",
+      "#ED8936",
       "#FF7F0E",
       "#2CA02C",
       "#A347E1",
@@ -872,7 +939,7 @@
     "className": "",
     "interpolation": "linear",
     "x": 467,
-    "y": 1080,
+    "y": 1120,
     "wires": [
       []
     ]
@@ -889,7 +956,8 @@
       "p101linkindb001",
       "p101linkinui001",
       "p101e1linkin001",
-      "p101e2linkin001"
+      "p101e2linkin001",
+      "p101w2linkin001"
     ],
     "x": 965,
     "y": 140,
@@ -923,7 +991,7 @@
     "y": 360,
     "wires": [
       [
-        "p101mqttout0001"
+        "p101w1totband01"
       ]
     ]
   },
@@ -936,7 +1004,7 @@
       "p101linkout0001"
     ],
     "x": 45,
-    "y": 520,
+    "y": 560,
     "wires": [
       [
         "p101dbinsert001"
@@ -952,7 +1020,7 @@
       "p101linkout0001"
     ],
     "x": 45,
-    "y": 1060,
+    "y": 1100,
     "wires": [
       [
         "p101fuerdash001"
@@ -966,7 +1034,7 @@
     "name": "Extra 1 · Alarm mit Entwarnungsschwelle (Hysterese)",
     "info": "Warnung ab 4,5 mm/s, Entwarnung erst unter 4,0 mm/s.\nAlarm ab 7,1 mm/s, Entwarnung erst unter 6,5 mm/s.\nEine Meldung geht nur beim Wechsel der Stufe raus, also genau einmal.\nMQTT: /bbk-lf7/18/power-house/vibration/alarm (retained, QoS 2)\nTest: Inject \"Test: Werte pendeln um 7,1\" anklicken, Ergebnis im Debug-Fenster.",
     "x": 243,
-    "y": 1200,
+    "y": 1240,
     "wires": []
   },
   {
@@ -978,7 +1046,7 @@
       "p101linkout0001"
     ],
     "x": 45,
-    "y": 1240,
+    "y": 1280,
     "wires": [
       [
         "p101e1grenzen01"
@@ -1007,7 +1075,7 @@
     "payload": "[3.0, 4.6, 4.4, 4.6, 5.8, 7.2, 7.0, 7.15, 6.9, 7.12, 6.6, 6.4, 5.0, 4.3, 4.6, 4.2, 3.9, 3.0]",
     "payloadType": "json",
     "x": 161,
-    "y": 1300,
+    "y": 1340,
     "wires": [
       [
         "p101e1grenzen01"
@@ -1027,7 +1095,7 @@
     "finalize": "",
     "libs": [],
     "x": 443,
-    "y": 1270,
+    "y": 1310,
     "wires": [
       [
         "p101e1linkout01"
@@ -1055,7 +1123,7 @@
       "p101e3linkin001"
     ],
     "x": 609,
-    "y": 1230,
+    "y": 1270,
     "wires": []
   },
   {
@@ -1063,7 +1131,7 @@
     "type": "ui-text",
     "z": "p101tab00000001",
     "group": "p101uigroup0001",
-    "order": 4,
+    "order": 5,
     "width": 0,
     "height": 0,
     "name": "Grenzwerte",
@@ -1079,7 +1147,7 @@
     "value": "payload",
     "valueType": "msg",
     "x": 666,
-    "y": 1270,
+    "y": 1310,
     "wires": []
   },
   {
@@ -1096,7 +1164,7 @@
     "statusVal": "",
     "statusType": "auto",
     "x": 703,
-    "y": 1310,
+    "y": 1350,
     "wires": []
   },
   {
@@ -1106,7 +1174,7 @@
     "name": "Extra 2 · Ausfall erkennen (Watchdog)",
     "info": "Kommt länger als 10 s kein Messwert, meldet der Flow genau einmal \"Ausfall\",\nbeim ersten Wert danach genau einmal \"Wieder da\". Nach Deploy oder Neustart wartet er 30 s.\nMQTT: /bbk-lf7/18/power-house/vibration/status (retained, QoS 2)\nTest: Inject \"Test: Ausfall 20 s\" anklicken. \"Messwert aufbereiten\" verwirft dann 20 s lang alle Werte.",
     "x": 191,
-    "y": 1380,
+    "y": 1420,
     "wires": []
   },
   {
@@ -1118,7 +1186,7 @@
       "p101linkout0001"
     ],
     "x": 45,
-    "y": 1420,
+    "y": 1460,
     "wires": [
       [
         "p101e2ausfall01"
@@ -1147,7 +1215,7 @@
     "payload": "",
     "payloadType": "date",
     "x": 102,
-    "y": 1460,
+    "y": 1500,
     "wires": [
       [
         "p101e2ausfall01"
@@ -1167,7 +1235,7 @@
     "finalize": "",
     "libs": [],
     "x": 325,
-    "y": 1440,
+    "y": 1480,
     "wires": [
       [
         "p101e2linkout01"
@@ -1191,7 +1259,7 @@
       "p101e3linkin001"
     ],
     "x": 491,
-    "y": 1420,
+    "y": 1460,
     "wires": []
   },
   {
@@ -1199,7 +1267,7 @@
     "type": "ui-text",
     "z": "p101tab00000001",
     "group": "p101uigroup0001",
-    "order": 5,
+    "order": 6,
     "width": 0,
     "height": 0,
     "name": "Datenfluss",
@@ -1215,7 +1283,7 @@
     "value": "payload",
     "valueType": "msg",
     "x": 548,
-    "y": 1460,
+    "y": 1500,
     "wires": []
   },
   {
@@ -1240,7 +1308,7 @@
     "payload": "",
     "payloadType": "date",
     "x": 131,
-    "y": 1520,
+    "y": 1560,
     "wires": [
       [
         "p101e2testchg01"
@@ -1267,7 +1335,7 @@
     "to": "",
     "reg": false,
     "x": 406,
-    "y": 1520,
+    "y": 1560,
     "wires": [
       []
     ]
@@ -1279,7 +1347,7 @@
     "name": "Extra 1 + 2 · Meldungen weitergeben",
     "info": "Jede Meldung geht per MQTT raus (retained, damit neue Abonnenten den Zustand kennen),\nin die Tabelle meldung und als Popup ins Dashboard.\nREST: GET /api/p101/meldungen?minutes=60 liefert Zustand und Meldungen.",
     "x": 184,
-    "y": 1580,
+    "y": 1620,
     "wires": []
   },
   {
@@ -1292,7 +1360,7 @@
       "p101e2linkout01"
     ],
     "x": 45,
-    "y": 1680,
+    "y": 1720,
     "wires": [
       [
         "p101e3mqttout01",
@@ -1317,7 +1385,7 @@
     "expiry": "",
     "broker": "p101mqttbroker1",
     "x": 250,
-    "y": 1620,
+    "y": 1660,
     "wires": []
   },
   {
@@ -1334,7 +1402,7 @@
     "statusVal": "",
     "statusType": "auto",
     "x": 220,
-    "y": 1680,
+    "y": 1720,
     "wires": []
   },
   {
@@ -1350,7 +1418,7 @@
     "finalize": "",
     "libs": [],
     "x": 210,
-    "y": 1720,
+    "y": 1760,
     "wires": []
   },
   {
@@ -1366,7 +1434,7 @@
     "finalize": "",
     "libs": [],
     "x": 210,
-    "y": 1780,
+    "y": 1820,
     "wires": [
       [
         "p101e3uinotif01"
@@ -1392,7 +1460,7 @@
     "className": "",
     "name": "Popup",
     "x": 430,
-    "y": 1780,
+    "y": 1820,
     "wires": [
       []
     ]
@@ -1408,7 +1476,7 @@
     "skipBodyParsing": false,
     "swaggerDoc": "",
     "x": 170,
-    "y": 1840,
+    "y": 1880,
     "wires": [
       [
         "p101e3abfrage01"
@@ -1428,7 +1496,7 @@
     "finalize": "",
     "libs": [],
     "x": 449,
-    "y": 1840,
+    "y": 1880,
     "wires": [
       [
         "p101e3httpres01"
@@ -1443,7 +1511,235 @@
     "statusCode": "",
     "headers": {},
     "x": 680,
-    "y": 1840,
+    "y": 1880,
+    "wires": []
+  },
+  {
+    "id": "p101w1totband01",
+    "type": "rbe",
+    "name": "Totband 0,1 mm/s",
+    "func": "deadband",
+    "gap": "0.1",
+    "start": "",
+    "inout": "out",
+    "septopics": true,
+    "property": "payload.value",
+    "topi": "topic",
+    "wires": [
+      [
+        "p101mqttout0001"
+      ]
+    ],
+    "z": "p101tab00000001",
+    "x": 204,
+    "y": 360
+  },
+  {
+    "id": "p101w1herz00001",
+    "type": "inject",
+    "name": "Lebenszeichen alle 10 s",
+    "props": [
+      {
+        "p": "reset",
+        "v": "true",
+        "vt": "bool"
+      }
+    ],
+    "repeat": "10",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "wires": [
+      [
+        "p101w1totband01"
+      ]
+    ],
+    "z": "p101tab00000001",
+    "x": 157,
+    "y": 400
+  },
+  {
+    "id": "p101w4platz0001",
+    "type": "function",
+    "name": "Platz im Ringpuffer",
+    "func": "// Jeder Wert bekommt einen Platz 0 … ANZAHL-1 als msg.topic.\n// Der Join-Node baut daraus ein Objekt mit höchstens ANZAHL Schlüsseln\n// und überschreibt so immer den ältesten Wert (Ringpuffer).\n// Eingang: msg.payload als Zahl oder als Objekt mit .value (wie im P-101-Flow)\nconst anzahl = Number(env.get(\"ANZAHL\")) || 10;\nconst wert = typeof msg.payload === \"number\" ? msg.payload : msg.payload && msg.payload.value;\nif (typeof wert !== \"number\" || !Number.isFinite(wert)) return null;\n\nconst nr = context.get(\"nr\") || 0;\ncontext.set(\"nr\", (nr + 1) % anzahl);\nreturn { topic: \"platz\" + nr, payload: wert, timestamp: msg.payload && msg.payload.timestamp };\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 230,
+    "y": 80,
+    "wires": [
+      [
+        "p101w4join00001"
+      ]
+    ],
+    "z": "p101w4subflow01"
+  },
+  {
+    "id": "p101w4join00001",
+    "type": "join",
+    "name": "letzte Werte sammeln",
+    "mode": "custom",
+    "build": "object",
+    "property": "payload",
+    "propertyType": "msg",
+    "key": "topic",
+    "joiner": "\\n",
+    "joinerType": "str",
+    "useparts": false,
+    "accumulate": true,
+    "timeout": "",
+    "count": "${ANZAHL}",
+    "reduceRight": false,
+    "reduceExp": "",
+    "reduceInit": "",
+    "reduceInitType": "",
+    "reduceFixup": "",
+    "x": 430,
+    "y": 80,
+    "wires": [
+      [
+        "p101w4mwert0001"
+      ]
+    ],
+    "z": "p101w4subflow01"
+  },
+  {
+    "id": "p101w4mwert0001",
+    "type": "function",
+    "name": "Mittelwert berechnen",
+    "func": "// Mittelwert der Werte im Ringpuffer (Objekt vom Join-Node, z. B. { platz0: 2.01, platz1: 2.03, … })\n// Ausgang 1: Mittelwert als Zahl in msg.payload, Anzahl in msg.anzahl\n// Ausgang 2: Status der Subflow-Instanz\nconst werte = Object.values(msg.payload);\nconst mittelwert = werte.reduce((summe, w) => summe + w, 0) / werte.length;\n\nconst out = {\n    topic: \"Ø \" + werte.length + \" Werte\",\n    payload: Math.round(mittelwert * 1000) / 1000,\n    anzahl: werte.length,\n    timestamp: msg.timestamp\n};\nconst status = { status: { fill: \"blue\", shape: \"dot\", text: \"Ø \" + out.payload.toFixed(3).replace(\".\", \",\") + \" aus \" + werte.length + \" Werten\" } };\nreturn [out, status];\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "outputLabels": [
+      "Mittelwert",
+      "Status"
+    ],
+    "x": 640,
+    "y": 80,
+    "wires": [
+      [],
+      []
+    ],
+    "z": "p101w4subflow01"
+  },
+  {
+    "id": "p101w2comment01",
+    "type": "comment",
+    "name": "Wahlaufgabe 2 + 4 · Gleitender Mittelwert über 10 Werte (Subflow)",
+    "info": "Der Subflow \"Gleitender Mittelwert\" (join + function) rechnet bei jedem Wert den Mittelwert der\nletzten 10 Werte. Die Anzahl ist eine Einstellung der Subflow-Instanz (ANZAHL).\nAusgabe: zweite Linie im Diagramm und Textzeile im Dashboard.",
+    "wires": [],
+    "z": "p101tab00000001",
+    "x": 295,
+    "y": 1960
+  },
+  {
+    "id": "p101w2linkin001",
+    "type": "link in",
+    "name": "Messwert",
+    "links": [
+      "p101linkout0001"
+    ],
+    "wires": [
+      [
+        "p101w2mittel001"
+      ]
+    ],
+    "z": "p101tab00000001",
+    "x": 45,
+    "y": 2020
+  },
+  {
+    "id": "p101w2mittel001",
+    "type": "subflow:p101w4subflow01",
+    "name": "Gleitender Mittelwert (10 Werte)",
+    "env": [
+      {
+        "name": "ANZAHL",
+        "value": "10",
+        "type": "num"
+      }
+    ],
+    "wires": [
+      [
+        "p101w2dashfn001",
+        "p101w2debug0001"
+      ]
+    ],
+    "z": "p101tab00000001",
+    "x": 243,
+    "y": 2020
+  },
+  {
+    "id": "p101w2dashfn001",
+    "type": "function",
+    "name": "Für Dashboard aufbereiten",
+    "func": "// Gleitenden Mittelwert fürs Dashboard aufbereiten:\n// Ausgang 1: Zahl als zweite Linie im Diagramm, Ausgang 2: Text\nconst wert = msg.payload;\nreturn [\n    { payload: Math.round(wert * 100) / 100, topic: msg.topic },\n    { payload: wert.toFixed(2).replace(\".\", \",\") + \" mm/s (gleitend)\" }\n];\n",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "wires": [
+      [
+        "p101uichart0001"
+      ],
+      [
+        "p101w2uitext001"
+      ]
+    ],
+    "z": "p101tab00000001",
+    "x": 573,
+    "y": 2000
+  },
+  {
+    "id": "p101w2debug0001",
+    "type": "debug",
+    "name": "Gleitender Mittelwert (Debug)",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "wires": [],
+    "z": "p101tab00000001",
+    "x": 588,
+    "y": 2050
+  },
+  {
+    "id": "p101w2uitext001",
+    "type": "ui-text",
+    "z": "p101tab00000001",
+    "group": "p101uigroup0001",
+    "order": 3,
+    "width": 0,
+    "height": 0,
+    "name": "Ø 10 Werte",
+    "label": "Ø letzte 10 Werte",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "style": false,
+    "font": "",
+    "fontSize": 16,
+    "color": "#717171",
+    "wrapText": false,
+    "className": "",
+    "value": "payload",
+    "valueType": "msg",
+    "x": 823,
+    "y": 2000,
     "wires": []
   }
 ]

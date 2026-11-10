@@ -4,6 +4,8 @@
  * Holt die Vibrationswerte, die Node-RED vom OPC-UA-Server (Milo) liest, auf drei Wegen:
  *   - WebSocket   (Aufgabe 2): wss://<gateway>/ws/p101
  *   - MQTT        (Aufgabe 4): wss://broker.hivemq.com:8884/mqtt, Topic /bbk-lf7/18/power-house/vibration
+ *                 Der Pi schickt dort nur Änderungen ab 0,1 mm/s (Totband) und spätestens alle 10 s einen Wert.
+ *                 Der Wert ist retained: Nach dem Neuladen liefert der Broker sofort den letzten Wert.
  *   - REST        (Aufgabe 7/8): https://<gateway>/api/p101/vibration?minutes=5 (Verlauf aus SQLite)
  *                 (Aufgabe 5):   https://<gateway>/api/p101/vibration/avg?minutes=5 (Durchschnitt)
  *
@@ -37,7 +39,7 @@
   var REST_PATH = '/api/p101/vibration';
   var AVG_PATH = '/api/p101/vibration/avg';
   var EVENTS_PATH = '/api/p101/meldungen';
-  var STALE_MS = 10000;      // ohne neuen Wert gilt die Anzeige als veraltet
+  var STALE_MS = 15000;      // ohne neuen Wert gilt die Anzeige als veraltet (MQTT mit Totband: spätestens alle 10 s)
   var NO_DATA_MS = 20000;    // so lange nach dem Öffnen ohne jeden Wert: Hinweis statt Schweigen
   var STORE_KEY = 'p101-live-config';
 
@@ -118,20 +120,23 @@
     el.querySelector('.status').textContent = status;
     if (addr !== undefined) el.querySelector('.addr').textContent = addr;
   }
-  function setChannelValue(id, sample) {
+  function setChannelValue(id, sample, retained) {
     var el = $(id);
     el.querySelector('.last .v').textContent = fmt(sample.value, 3) + ' mm/s';
-    el.querySelector('.last .t').textContent = clock(sample.timestamp);
+    el.querySelector('.last .t').textContent = when(sample.timestamp) + (retained ? ' · retained' : '');
   }
 
   // Neuer Messwert von WebSocket, MQTT oder REST.
   // Nur ein wirklich neuerer Wert zählt, sonst würde der immer gleiche letzte REST-Wert einen Ausfall verdecken.
-  function onSample(sample, channelId) {
+  // Ein retained Wert kommt beim Verbinden sofort vom Broker, kann aber alt sein (z. B. Pi aus).
+  // Sein Alter zählt deshalb ab seinem Zeitstempel, nicht ab dem Empfang.
+  function onSample(sample, channelId, retained) {
     if (!sample || typeof sample.value !== 'number') return;
-    setChannelValue(channelId, sample);
-    lastBy[channelId] = { timestamp: sample.timestamp, at: Date.now() };
+    setChannelValue(channelId, sample, retained);
+    var at = retained ? Math.min(Date.now(), Date.parse(sample.timestamp) || 0) : Date.now();
+    lastBy[channelId] = { timestamp: sample.timestamp, at: at };
     if (!latest || new Date(sample.timestamp) > new Date(latest.sample.timestamp)) {
-      latest = { sample: sample, at: Date.now() };
+      latest = { sample: sample, at: at, retained: !!retained };
       renderHero();
     }
   }
@@ -154,8 +159,9 @@
     $('value').textContent = fmt(s.value, 2);
     $('zone').textContent = stale ? 'Keine aktuellen Daten' : ZONE_TEXT[zoneOf(s)];
     var via = deliveredVia();
-    $('meta').textContent = 'Stand ' + clock(s.timestamp) +
-      (via.length ? ' · empfangen über ' + via.join(' und ') : '') +
+    $('meta').textContent = 'Stand ' + when(s.timestamp) +
+      (latest.retained ? ' · letzter gespeicherter Wert vom MQTT-Broker (retained)'
+        : via.length ? ' · empfangen über ' + via.join(' und ') : '') +
       (stale ? ' · letzter Wert vor ' + Math.round(age / 1000) + ' s' : '');
     $('marker').style.left = Math.min(100, Math.max(0, s.value / 20 * 100)) + '%';
   }
@@ -205,7 +211,7 @@
       connectTimeout: 10000
     });
     mq.on('connect', function () {
-      setChannel('ch-mqtt', 'on', 'verbunden, abonniert');
+      setChannel('ch-mqtt', 'on', 'verbunden, abonniert (nur Änderungen ab 0,1 mm/s, retained)');
       mq.subscribe(cfg.topic, { qos: 0 });
       mq.subscribe(GATEWAY_TOPIC, { qos: 1 });   // aktuelle Tunnel-Adresse vom Pi (retained)
       mq.subscribe([alarmTopic(), statusTopic()], { qos: 2 });   // Meldungen (retained, genau einmal)
@@ -215,10 +221,10 @@
       setChannel('ch-mqtt', 'err', 'keine Verbindung zum Broker (Port 8884 gesperrt?)');
     });
     mq.on('error', function (e) { setChannel('ch-mqtt', 'err', 'Fehler: ' + e.message); });
-    mq.on('message', function (topic, payload) {
+    mq.on('message', function (topic, payload, packet) {
       if (topic === GATEWAY_TOPIC) { onGatewayAnnounced(payload.toString()); return; }
       if (topic === alarmTopic() || topic === statusTopic()) { onMeldung(payload.toString()); return; }
-      try { onSample(JSON.parse(payload.toString()), 'ch-mqtt'); } catch (e) { /* keine JSON-Nachricht */ }
+      try { onSample(JSON.parse(payload.toString()), 'ch-mqtt', packet && packet.retain); } catch (e) { /* keine JSON-Nachricht */ }
     });
   }
 
